@@ -1,21 +1,18 @@
-"""OpenTelemetry log handler for simple_log_factory.
+"""OpenTelemetry tracing support for simple_log_factory.
 
-Provides ``OtelLogHandler``, a standard ``logging.Handler`` that ships log
-records to an OpenTelemetry-compatible backend via gRPC or HTTP.  Designed
-as a drop-in plugin for ``simple_log_factory``'s ``custom_handlers``
-parameter.
+Provides ``OtelTracer``, a thin wrapper around the OTel ``TracerProvider``
+that mirrors the structure of ``OtelLogHandler``.
 """
 
 from __future__ import annotations
 
 import atexit
-import logging
 
-from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter as GrpcLogExporter
-from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter as HttpLogExporter
-from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
-from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter as GrpcSpanExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter as HttpSpanExporter
 from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import Tracer, TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 from simple_log_factory_ext_otel._constants import (
     DEFAULT_ENDPOINT,
@@ -26,22 +23,14 @@ from simple_log_factory_ext_otel._constants import (
 from simple_log_factory_ext_otel._resource import create_resource
 
 
-class OtelLogHandler(logging.Handler):
-    """A logging handler that ships log records to an OpenTelemetry backend.
+class OtelTracer:
+    """Manages an OTel ``TracerProvider`` with OTLP span export.
 
-    Designed as a drop-in plugin for ``simple_log_factory``'s
-    ``custom_handlers`` parameter.  Internally manages the OTel
-    ``LoggerProvider``, exporter, and processor lifecycle.
-
-    The handler uses **composition** rather than inheriting from the OTel SDK's
-    ``LoggingHandler``.  This is critical because ``log_factory`` calls
-    ``handler.setFormatter()`` and ``handler.setLevel()`` on every handler it
-    receives — if we inherited from ``LoggingHandler``, the factory's formatter
-    would overwrite OTel's internal translation.  By wrapping it, both
-    pipelines stay independent.
+    Mirrors ``OtelLogHandler`` in structure and constructor parameters so
+    that both pipelines can be configured consistently.
 
     Args:
-        service_name: Logical name of the service emitting logs.
+        service_name: Logical name of the service emitting spans.
         endpoint: OTLP receiver endpoint.
         protocol: Transport protocol — ``"grpc"`` or ``"http"``.
         insecure: Whether to use an insecure (plaintext) connection.
@@ -49,8 +38,6 @@ class OtelLogHandler(logging.Handler):
         resource_attributes: Extra key/value pairs merged into the OTel
             ``Resource`` alongside ``service.name``.  Ignored when
             *resource* is provided.
-        log_level: Minimum severity for records forwarded to the OTel
-            pipeline.  Uses standard ``logging`` level constants.
         export_timeout_millis: Timeout in milliseconds for each export batch.
         resource: Pre-built ``Resource`` instance.  When provided,
             *service_name* and *resource_attributes* are not used for
@@ -58,19 +45,6 @@ class OtelLogHandler(logging.Handler):
 
     Raises:
         ValueError: If *protocol* is not ``"grpc"`` or ``"http"``.
-
-    Example::
-
-        from simple_log_factory import log_factory
-        from simple_log_factory_ext_otel import OtelLogHandler
-
-        handler = OtelLogHandler(
-            service_name="my-service",
-            endpoint="http://localhost:4317",
-        )
-        logger = log_factory(__name__, custom_handlers=[handler])
-        logger.info("Hello from OTel!")
-        handler.shutdown()
     """
 
     def __init__(
@@ -81,12 +55,9 @@ class OtelLogHandler(logging.Handler):
         insecure: bool = True,
         headers: dict[str, str] | None = None,
         resource_attributes: dict[str, str] | None = None,
-        log_level: int = logging.NOTSET,
         export_timeout_millis: int = DEFAULT_EXPORT_TIMEOUT_MILLIS,
         resource: Resource | None = None,
     ) -> None:
-        super().__init__(level=log_level)
-
         if protocol not in VALID_PROTOCOLS:
             raise ValueError(f"Invalid protocol {protocol!r}. Must be one of {sorted(VALID_PROTOCOLS)}.")
 
@@ -104,12 +75,9 @@ class OtelLogHandler(logging.Handler):
         )
 
         # --- Processor & Provider -------------------------------------
-        self._processor = BatchLogRecordProcessor(exporter)
-        self._provider = LoggerProvider(resource=resource)
-        self._provider.add_log_record_processor(self._processor)
-
-        # --- Inner OTel handler (does LogRecord → OTel translation) ----
-        self._otel_handler = LoggingHandler(logger_provider=self._provider)
+        self._processor = BatchSpanProcessor(exporter)
+        self._provider = TracerProvider(resource=resource)
+        self._provider.add_span_processor(self._processor)
 
         self._shutdown_called = False
         atexit.register(self.shutdown)
@@ -118,46 +86,38 @@ class OtelLogHandler(logging.Handler):
     # Public API
     # ------------------------------------------------------------------
 
-    def emit(self, record: logging.LogRecord) -> None:
-        """Translate and forward *record* to the OTel pipeline.
+    @property
+    def tracer(self) -> Tracer:
+        """Return a ``Tracer`` from the managed provider."""
+        return self._provider.get_tracer(__name__)  # type: ignore[return-value]
 
-        Exceptions are silently handled via ``handleError`` so the calling
-        application is never disrupted by telemetry failures.
-        """
-        try:
-            self._otel_handler.emit(record)
-        except Exception:
-            self.handleError(record)
+    @property
+    def provider(self) -> TracerProvider:
+        """Expose the underlying ``TracerProvider`` for advanced use cases."""
+        return self._provider
 
     def flush(self) -> None:
-        """Force-flush any buffered log records."""
+        """Force-flush any buffered spans."""
         if not self._shutdown_called:
             self._provider.force_flush()
-        super().flush()
 
     def shutdown(self) -> None:
-        """Gracefully shut down the OTel pipeline.
+        """Gracefully shut down the OTel tracing pipeline.
 
         Safe to call multiple times — subsequent calls are no-ops.
         """
         if self._shutdown_called:
             return
         self._shutdown_called = True
-        self._provider.shutdown()  # type: ignore[no-untyped-call]
+        self._provider.shutdown()
 
     def close(self) -> None:
-        """Called by the logging framework on handler removal."""
+        """Alias for :meth:`shutdown`."""
         self.shutdown()
-        super().close()
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-
-    @property
-    def provider(self) -> LoggerProvider:
-        """Expose the underlying ``LoggerProvider`` for advanced use cases."""
-        return self._provider
 
     @staticmethod
     def _create_exporter(
@@ -166,17 +126,17 @@ class OtelLogHandler(logging.Handler):
         insecure: bool,
         headers: dict[str, str] | None,
         timeout: int,
-    ) -> GrpcLogExporter | HttpLogExporter:
-        """Instantiate the appropriate OTLP log exporter."""
+    ) -> GrpcSpanExporter | HttpSpanExporter:
+        """Instantiate the appropriate OTLP span exporter."""
         if protocol == "grpc":
-            return GrpcLogExporter(
+            return GrpcSpanExporter(
                 endpoint=endpoint,
                 insecure=insecure,
                 headers=headers or {},
                 timeout=timeout,
             )
         # protocol == "http"
-        return HttpLogExporter(
+        return HttpSpanExporter(
             endpoint=endpoint,
             headers=headers or {},
             timeout=timeout,

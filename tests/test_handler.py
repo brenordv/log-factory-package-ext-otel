@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk.resources import Resource
 
 from simple_log_factory_ext_otel import OtelLogHandler
 
@@ -94,6 +95,19 @@ class TestHandlerInit:
             headers={"Authorization": "Bearer tok"},
             timeout=10000,
         )
+
+    @patch("simple_log_factory_ext_otel.handler.GrpcLogExporter")
+    def test_pre_built_resource_is_used(self, _mock: MagicMock) -> None:
+        resource = Resource.create({"service.name": "shared-svc", "custom.attr": "value"})
+        handler = OtelLogHandler(service_name="ignored", resource=resource)
+        assert handler.provider.resource is resource
+        handler.shutdown()
+
+    @patch("simple_log_factory_ext_otel.handler.GrpcLogExporter")
+    def test_resource_none_falls_back_to_create_resource(self, _mock: MagicMock) -> None:
+        handler = OtelLogHandler(service_name="fallback-svc", resource=None)
+        assert handler.provider.resource.attributes["service.name"] == "fallback-svc"
+        handler.shutdown()
 
 
 # ------------------------------------------------------------------

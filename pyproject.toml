@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "simple-log-factory-ext-otel"
-version = "1.0.1"
-description = "OpenTelemetry log handler plugin for simple_log_factory"
+version = "1.1.0rc1"
+description = "OpenTelemetry log handler and tracing plugin for simple_log_factory"
 readme = "README.md"
 license = "GPL-3.0-only"
 license-files = ["LICENSE.md"]
 requires-python = ">=3.9"
 authors = [
-    {name = "raccoon"},
+    {name = "Breno RdV"},
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -26,7 +26,7 @@ classifiers = [
     "Topic :: System :: Logging",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-keywords = ["logging", "opentelemetry", "otel", "observability", "simple-log-factory"]
+keywords = ["logging", "opentelemetry", "otel", "observability", "simple-log-factory", "tracing", "traces", "spans"]
 
 dependencies = [
     "opentelemetry-api>=1.20.0",

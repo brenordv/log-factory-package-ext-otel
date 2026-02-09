@@ -9,8 +9,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from opentelemetry.sdk._logs.export import LogExportResult
+from opentelemetry.sdk.trace.export import SpanExportResult
 
 from simple_log_factory_ext_otel import OtelLogHandler
+from simple_log_factory_ext_otel.tracing import OtelTracer
 
 
 class InMemoryLogExporter:
@@ -83,3 +85,47 @@ def handler_kwargs() -> dict[str, Any]:
         "endpoint": "http://localhost:4317",
         "protocol": "grpc",
     }
+
+
+class InMemorySpanExporter:
+    """A minimal in-memory span exporter for testing."""
+
+    def __init__(self) -> None:
+        self.spans: list[Any] = []
+        self._shutdown = False
+
+    def export(self, batch: Any) -> SpanExportResult:
+        if self._shutdown:
+            return SpanExportResult.FAILURE
+        self.spans.extend(batch)
+        return SpanExportResult.SUCCESS
+
+    def shutdown(self) -> None:
+        self._shutdown = True
+
+    def force_flush(self, timeout_millis: int = 0) -> bool:
+        return True
+
+
+@pytest.fixture()
+def grpc_tracer() -> Generator[OtelTracer, None, None]:
+    """Create an OtelTracer with gRPC protocol using a mocked exporter."""
+    with patch(
+        "simple_log_factory_ext_otel.tracing.GrpcSpanExporter",
+        return_value=MagicMock(),
+    ):
+        tracer = OtelTracer(service_name="test-grpc", protocol="grpc")
+        yield tracer
+        tracer.shutdown()
+
+
+@pytest.fixture()
+def http_tracer() -> Generator[OtelTracer, None, None]:
+    """Create an OtelTracer with HTTP protocol using a mocked exporter."""
+    with patch(
+        "simple_log_factory_ext_otel.tracing.HttpSpanExporter",
+        return_value=MagicMock(),
+    ):
+        tracer = OtelTracer(service_name="test-http", protocol="http")
+        yield tracer
+        tracer.shutdown()
