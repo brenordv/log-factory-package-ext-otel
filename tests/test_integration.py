@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from simple_log_factory_ext_otel import OtelLogHandler
+from simple_log_factory_ext_otel import OtelLogHandler, OtelTracer, TracedLogger, setup_otel
 
 # ------------------------------------------------------------------
 # Helpers
@@ -164,3 +164,60 @@ class TestStandaloneIntegration:
         finally:
             logger.removeHandler(handler)
             handler.shutdown()
+
+
+# ------------------------------------------------------------------
+# setup_otel() integration
+# ------------------------------------------------------------------
+
+
+class TestSetupOtel:
+    """Tests for the setup_otel() convenience function."""
+
+    @patch("simple_log_factory_ext_otel.handler.GrpcLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.GrpcSpanExporter", return_value=MagicMock())
+    def test_setup_otel_returns_handler_and_tracer(self, _span: MagicMock, _log: MagicMock) -> None:
+        handler, tracer = setup_otel(service_name="test-svc")
+        assert isinstance(handler, OtelLogHandler)
+        assert isinstance(tracer, OtelTracer)
+        handler.shutdown()
+        tracer.shutdown()
+
+    @patch("simple_log_factory_ext_otel.handler.GrpcLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.GrpcSpanExporter", return_value=MagicMock())
+    def test_setup_otel_shares_resource(self, _span: MagicMock, _log: MagicMock) -> None:
+        handler, tracer = setup_otel(
+            service_name="shared-svc",
+            resource_attributes={"env": "test"},
+        )
+        handler_resource = handler.provider.resource
+        tracer_resource = tracer.provider.resource
+        assert handler_resource is tracer_resource
+        assert handler_resource.attributes["service.name"] == "shared-svc"
+        assert handler_resource.attributes["env"] == "test"
+        handler.shutdown()
+        tracer.shutdown()
+
+    @patch("simple_log_factory_ext_otel.handler.GrpcLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.GrpcSpanExporter", return_value=MagicMock())
+    def test_traced_logger_with_log_factory(self, _span: MagicMock, _log: MagicMock) -> None:
+        handler, otel_tracer = setup_otel(service_name="tl-svc")
+        handler._otel_handler = MagicMock()
+
+        stdlib_logger = logging.getLogger(_unique_logger_name("test.traced_logger"))
+        stdlib_logger.setLevel(logging.DEBUG)
+        stdlib_logger.addHandler(handler)
+
+        traced = TracedLogger(logger=stdlib_logger, tracer=otel_tracer.tracer)
+
+        try:
+            with traced.span("my-op"):
+                traced.info("inside span")
+
+            handler._otel_handler.emit.assert_called_once()
+            record = handler._otel_handler.emit.call_args[0][0]
+            assert record.getMessage() == "inside span"
+        finally:
+            stdlib_logger.removeHandler(handler)
+            handler.shutdown()
+            otel_tracer.shutdown()

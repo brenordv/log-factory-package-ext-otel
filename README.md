@@ -1,8 +1,8 @@
 # simple-log-factory-ext-otel
 
-OpenTelemetry log handler plugin for [simple_log_factory](https://github.com/raccoon/simple-log-factory).
+OpenTelemetry log handler and tracing plugin for [simple_log_factory](https://github.com/raccoon/simple-log-factory).
 
-Ship your log messages to any OpenTelemetry-compatible backend (Tempo, Jaeger, Grafana Cloud, SigNoz, etc.) without changing any existing logging code.
+Ship your log messages **and traces** to any OpenTelemetry-compatible backend (Tempo, Jaeger, Grafana Cloud, SigNoz, etc.) without changing any existing logging code.
 
 ## Installation
 
@@ -17,6 +17,8 @@ uv add simple-log-factory-ext-otel
 ```
 
 ## Quick Start
+
+### Pattern 1 — Logs Only
 
 ```python
 from simple_log_factory import log_factory
@@ -38,6 +40,39 @@ logger.info("This goes to console AND to your OTel backend")
 
 # 3. Clean shutdown (optional but recommended)
 otel_handler.shutdown()
+```
+
+### Pattern 2 — Logs + Tracing with `setup_otel()`
+
+```python
+from simple_log_factory import log_factory
+from simple_log_factory_ext_otel import setup_otel, TracedLogger
+
+# 1. One-call setup — creates both log handler and tracer
+#    with a shared Resource; registers TracerProvider globally
+handler, otel_tracer = setup_otel(
+    service_name="my-service",
+    endpoint="http://localhost:4317",
+)
+
+# 2. Create a logger with the OTel handler
+logger = log_factory(__name__, custom_handlers=[handler])
+
+# 3. Wrap with TracedLogger for span support
+traced = TracedLogger(logger=logger, tracer=otel_tracer.tracer)
+
+# 4. Use span() to create correlated spans
+with traced.span("process-order", attributes={"order.id": "123"}):
+    traced.info("Processing order")   # auto-correlated with the span
+    # ... your business logic ...
+
+# 5. Or use @trace() as a decorator
+@traced.trace("fetch-user")
+def fetch_user(user_id: int) -> dict:
+    traced.info("Fetching user %d", user_id)
+    return {"id": user_id, "name": "Alice"}
+
+fetch_user(42)
 ```
 
 ## Configuration
@@ -109,6 +144,30 @@ handler = OtelLogHandler(
 )
 ```
 
+### `TracedLogger` API
+
+`TracedLogger` wraps a standard `logging.Logger` and an OTel `Tracer`:
+
+- **`span(name, attributes)`** — context manager that creates an OTel span. Logs inside the block are auto-correlated.
+- **`trace(name, attributes)`** — decorator that wraps a function in a span. Exceptions are recorded on the span and re-raised.
+- **`debug/info/warning/error/exception/critical/log`** — proxy to the underlying logger.
+- **`logger` / `tracer`** properties — escape hatches for direct access.
+
+### `setup_otel()` Parameters
+
+| Parameter               | Type             | Default                 | Description                                      |
+|-------------------------|------------------|-------------------------|--------------------------------------------------|
+| `service_name`          | `str`            | *(required)*            | Logical name of the service                      |
+| `endpoint`              | `str`            | `http://localhost:4317` | OTLP receiver endpoint                           |
+| `protocol`              | `str`            | `"grpc"`                | Transport protocol — `"grpc"` or `"http"`        |
+| `insecure`              | `bool`           | `True`                  | Use plaintext (insecure) connection              |
+| `headers`               | `Dict[str, str]` | `None`                  | Metadata headers sent with every export request  |
+| `resource_attributes`   | `Dict[str, str]` | `None`                  | Extra OTel Resource attributes                   |
+| `export_timeout_millis` | `int`            | `30000`                 | Timeout in ms for each export batch              |
+| `log_level`             | `int`            | `logging.NOTSET`        | Minimum severity forwarded to the OTel pipeline  |
+
+Returns a `(OtelLogHandler, OtelTracer)` tuple. The `TracerProvider` is registered globally so auto-instrumentation libraries (FastAPI, psycopg2, etc.) share the same provider.
+
 ## How It Works
 
 `OtelLogHandler` extends `logging.Handler` directly (not OTel's `LoggingHandler`) and internally composes the OTel pipeline:
@@ -127,7 +186,7 @@ This composition pattern is critical: `log_factory` calls `setFormatter()` and `
 
 ### Trace Context Correlation
 
-If you're using OpenTelemetry tracing, span and trace IDs are automatically attached to log records. No extra configuration needed.
+When using `setup_otel()` or sharing a `Resource` between `OtelLogHandler` and `OtelTracer`, span and trace IDs are automatically attached to log records emitted inside active spans. No extra configuration needed.
 
 ## Lifecycle Management
 
