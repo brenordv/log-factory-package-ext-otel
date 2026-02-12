@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 from unittest.mock import MagicMock
 
@@ -153,3 +154,101 @@ class TestTraceDecorator:
 
         assert documented_func.__name__ == "documented_func"
         assert documented_func.__doc__ == "My docstring."
+
+
+# ------------------------------------------------------------------
+# async_span() context manager
+# ------------------------------------------------------------------
+
+
+class TestAsyncSpanContextManager:
+    """Tests for the async_span() async context manager."""
+
+    @pytest.mark.asyncio
+    async def test_async_span_creates_active_span(self, traced_logger: TracedLogger) -> None:
+        async with traced_logger.async_span("async-test-span") as s:
+            assert s is not None
+            assert s.name == "async-test-span"
+            assert get_current_span() is s
+
+    @pytest.mark.asyncio
+    async def test_async_span_with_attributes(self, traced_logger: TracedLogger) -> None:
+        async with traced_logger.async_span("async-span", attributes={"key": "value"}) as s:
+            assert s.attributes["key"] == "value"
+
+    @pytest.mark.asyncio
+    async def test_async_nested_spans(self, traced_logger: TracedLogger) -> None:
+        async with traced_logger.async_span("outer") as outer:
+            async with traced_logger.async_span("inner") as inner:
+                assert inner.name == "inner"
+                assert inner.parent is not None
+                assert inner.parent.span_id == outer.context.span_id
+
+
+# ------------------------------------------------------------------
+# trace() decorator — async path
+# ------------------------------------------------------------------
+
+
+class TestTraceDecoratorAsync:
+    """Tests for the trace() decorator with async functions."""
+
+    @pytest.mark.asyncio
+    async def test_trace_async_creates_span(self, traced_logger: TracedLogger) -> None:
+        @traced_logger.trace("async-op")
+        async def my_async_func() -> str:
+            span = get_current_span()
+            assert span.is_recording()
+            return "async-result"
+
+        assert await my_async_func() == "async-result"
+
+    @pytest.mark.asyncio
+    async def test_trace_async_default_name_is_qualname(self, traced_logger: TracedLogger) -> None:
+        @traced_logger.trace()
+        async def some_async_function() -> None:
+            span = get_current_span()
+            assert "some_async_function" in span.name
+
+        await some_async_function()
+
+    @pytest.mark.asyncio
+    async def test_trace_async_records_exception(self, traced_logger: TracedLogger) -> None:
+        @traced_logger.trace("failing-async-op")
+        async def failing_async() -> None:
+            raise ValueError("async boom")
+
+        with pytest.raises(ValueError, match="async boom"):
+            await failing_async()
+
+    @pytest.mark.asyncio
+    async def test_trace_async_with_attributes(self, traced_logger: TracedLogger) -> None:
+        @traced_logger.trace("async-op", attributes={"op.type": "async-test"})
+        async def my_async_op() -> str:
+            return "ok"
+
+        assert await my_async_op() == "ok"
+
+    @pytest.mark.asyncio
+    async def test_trace_async_preserves_function_metadata(self, traced_logger: TracedLogger) -> None:
+        @traced_logger.trace("op")
+        async def documented_async_func() -> None:
+            """My async docstring."""
+
+        assert documented_async_func.__name__ == "documented_async_func"
+        assert documented_async_func.__doc__ == "My async docstring."
+
+    @pytest.mark.asyncio
+    async def test_trace_async_returns_coroutine_function(self, traced_logger: TracedLogger) -> None:
+        @traced_logger.trace("op")
+        async def my_coro() -> None:
+            pass
+
+        assert inspect.iscoroutinefunction(my_coro)
+
+    def test_trace_sync_not_coroutine_function(self, traced_logger: TracedLogger) -> None:
+        @traced_logger.trace("op")
+        def my_sync() -> None:
+            pass
+
+        assert not inspect.iscoroutinefunction(my_sync)
