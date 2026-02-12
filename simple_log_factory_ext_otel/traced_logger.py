@@ -8,9 +8,10 @@ OTel spans.
 from __future__ import annotations
 
 import functools
+import inspect
 import logging
-from collections.abc import Generator
-from contextlib import contextmanager
+from collections.abc import AsyncGenerator, Generator
+from contextlib import asynccontextmanager, contextmanager
 from typing import Any, Callable, TypeVar
 
 from opentelemetry.sdk.trace import Tracer
@@ -107,6 +108,26 @@ class TracedLogger:
         with self._tracer.start_as_current_span(name, attributes=attributes) as s:
             yield s
 
+    @asynccontextmanager
+    async def async_span(
+        self,
+        name: str,
+        attributes: dict[str, Any] | None = None,
+    ) -> AsyncGenerator[Any, None]:
+        """Async context manager that creates an OTel span.
+
+        Async counterpart of :meth:`span` for use in ``async with`` blocks.
+
+        Args:
+            name: The span name.
+            attributes: Optional span attributes.
+
+        Yields:
+            The active OTel span.
+        """
+        with self._tracer.start_as_current_span(name, attributes=attributes) as s:
+            yield s
+
     def trace(
         self,
         name: str | None = None,
@@ -127,6 +148,20 @@ class TracedLogger:
 
         def decorator(func: F) -> F:
             span_name = name or func.__qualname__
+
+            if inspect.iscoroutinefunction(func):
+
+                @functools.wraps(func)
+                async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                    with self._tracer.start_as_current_span(span_name, attributes=attributes) as s:
+                        try:
+                            return await func(*args, **kwargs)
+                        except Exception as exc:
+                            s.set_status(StatusCode.ERROR, str(exc))
+                            s.record_exception(exc)
+                            raise
+
+                return async_wrapper  # type: ignore[return-value]
 
             @functools.wraps(func)
             def wrapper(*args: Any, **kwargs: Any) -> Any:
