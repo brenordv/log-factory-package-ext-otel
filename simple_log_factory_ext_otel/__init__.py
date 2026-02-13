@@ -17,7 +17,7 @@ __all__ = [
     "create_resource",
     "setup_otel",
 ]
-__version__ = "1.1.0rc1"
+__version__ = "1.1.0"
 
 
 def setup_otel(
