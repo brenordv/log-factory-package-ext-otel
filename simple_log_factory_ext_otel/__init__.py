@@ -144,8 +144,9 @@ def otel_log_factory(
 
     if use_http_protocol:
         protocol = "http"
-        log_handler_url = f"{otel_exporter_http}/v1/logs"
-        tracer_handler_url = f"{otel_exporter_http}/v1/traces"
+        base = otel_exporter_http.rstrip("/")
+        log_handler_url = f"{base}/v1/logs"
+        tracer_handler_url = f"{base}/v1/traces"
     else:
         protocol = "grpc"
         log_handler_url = otel_exporter_http
