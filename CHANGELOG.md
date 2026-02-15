@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-02-14
+### Changed
+- `otel_log_factory()` parameter `otel_exporter_http` renamed to `otel_exporter_endpoint`.
+
 ## [1.2.0] - 2026-02-14
 ### Added
 - `otel_log_factory()` — all-in-one factory that creates a `TracedLogger` wired to an OTel backend, combining OTel setup and `simple_log_factory.log_factory` logger creation in a single call. Supports per-endpoint/service/log-name caching (multiple independent loggers) and both HTTP/gRPC protocols.
