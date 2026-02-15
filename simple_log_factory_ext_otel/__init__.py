@@ -84,7 +84,7 @@ def setup_otel(
 
 def otel_log_factory(
     service_name: str,
-    otel_exporter_http: str,
+    otel_exporter_endpoint: str,
     log_name: str | None = None,
     cache_logger: bool = True,
     use_http_protocol: bool = True,
@@ -97,14 +97,14 @@ def otel_log_factory(
     use for both logging and tracing.
 
     When *cache_logger* is ``True`` (the default), loggers are cached by a
-    composite key of ``(otel_exporter_http, service_name, log_name)``.  This
+    composite key of ``(otel_exporter_endpoint, service_name, log_name)``.  This
     allows multiple independent loggers for different services or endpoints
     while still reusing the same instance when the same combination is
     requested again.
 
     Args:
         service_name: Logical name of the service emitting logs and traces.
-        otel_exporter_http: Base URL of the OpenTelemetry collector endpoint
+        otel_exporter_endpoint: Base URL of the OpenTelemetry collector endpoint
             (e.g. ``"http://localhost:4318"``).  Path suffixes are appended
             automatically when using HTTP protocol.
         log_name: Name passed to ``log_factory``.  Defaults to
@@ -121,13 +121,13 @@ def otel_log_factory(
         A ``TracedLogger`` with both logging and tracing configured.
 
     Raises:
-        ValueError: If *service_name* or *otel_exporter_http* is empty or
+        ValueError: If *service_name* or *otel_exporter_endpoint* is empty or
             whitespace-only.
     """
     from simple_log_factory import log_factory
 
-    if not otel_exporter_http or otel_exporter_http.isspace():
-        raise ValueError("otel_exporter_http must be set.")
+    if not otel_exporter_endpoint or otel_exporter_endpoint.isspace():
+        raise ValueError("otel_exporter_endpoint must be set.")
 
     if service_name is None or service_name.isspace():
         raise ValueError("service_name must be set.")
@@ -135,7 +135,7 @@ def otel_log_factory(
     if log_name is None:
         log_name = service_name
 
-    cache_key = f"{otel_exporter_http}:{service_name}:{log_name}"
+    cache_key = f"{otel_exporter_endpoint}:{service_name}:{log_name}"
 
     if cache_logger and cache_key in _otel_logger_map:
         return _otel_logger_map[cache_key]
@@ -144,13 +144,13 @@ def otel_log_factory(
 
     if use_http_protocol:
         protocol = "http"
-        base = otel_exporter_http.rstrip("/")
+        base = otel_exporter_endpoint.rstrip("/")
         log_handler_url = f"{base}/v1/logs"
         tracer_handler_url = f"{base}/v1/traces"
     else:
         protocol = "grpc"
-        log_handler_url = otel_exporter_http
-        tracer_handler_url = otel_exporter_http
+        log_handler_url = otel_exporter_endpoint
+        tracer_handler_url = otel_exporter_endpoint
 
     log_handler = OtelLogHandler(
         service_name=service_name,

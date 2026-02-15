@@ -50,7 +50,7 @@ from simple_log_factory_ext_otel import otel_log_factory
 # One call — creates logger, OTel handler, and tracer
 traced = otel_log_factory(
     service_name="my-service",
-    otel_exporter_http="http://localhost:4318",
+    otel_exporter_endpoint="http://localhost:4318",
 )
 
 # Logging works immediately
@@ -64,14 +64,14 @@ with traced.span("process-order", attributes={"order.id": "123"}):
 # cached instance (cache_logger=True by default)
 same_traced = otel_log_factory(
     service_name="my-service",
-    otel_exporter_http="http://localhost:4318",
+    otel_exporter_endpoint="http://localhost:4318",
 )
 assert same_traced is traced
 
 # Different service names or endpoints get independent loggers
 payments_traced = otel_log_factory(
     service_name="payment-service",
-    otel_exporter_http="http://localhost:4318",
+    otel_exporter_endpoint="http://localhost:4318",
 )
 ```
 
@@ -206,13 +206,13 @@ Returns a `(OtelLogHandler, OtelTracer)` tuple. The `TracerProvider` is register
 | Parameter           | Type   | Default        | Description                                                                 |
 |---------------------|--------|----------------|-----------------------------------------------------------------------------|
 | `service_name`      | `str`  | *(required)*   | Logical name of the service                                                 |
-| `otel_exporter_http`| `str`  | *(required)*   | Base URL of the OTel collector (e.g. `http://localhost:4318`)               |
+| `otel_exporter_endpoint`| `str`  | *(required)*   | Base URL of the OTel collector (e.g. `http://localhost:4318`)               |
 | `log_name`          | `str`  | `service_name` | Name passed to `log_factory`. Defaults to `service_name` when `None`        |
 | `cache_logger`      | `bool` | `True`         | Cache and reuse the logger for the same endpoint/service/log-name combo     |
 | `use_http_protocol` | `bool` | `True`         | `True` for HTTP (appends `/v1/logs` and `/v1/traces`), `False` for gRPC    |
 | `**kwargs`          |        |                | Extra keyword arguments forwarded to `simple_log_factory.log_factory`       |
 
-Returns a `TracedLogger` with both logging and tracing configured. The `TracerProvider` is registered globally. Loggers are cached by the composite key `(otel_exporter_http, service_name, log_name)`, so different services or endpoints get independent loggers.
+Returns a `TracedLogger` with both logging and tracing configured. The `TracerProvider` is registered globally. Loggers are cached by the composite key `(otel_exporter_endpoint, service_name, log_name)`, so different services or endpoints get independent loggers.
 
 ## How It Works
 
