@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 
@@ -20,7 +22,7 @@ __all__ = [
 ]
 __version__ = "1.2.0"
 
-_otel_logger_map: dict = {}
+_otel_logger_map: dict[str, TracedLogger] = {}
 
 
 def setup_otel(
@@ -86,7 +88,7 @@ def otel_log_factory(
     log_name: str | None = None,
     cache_logger: bool = True,
     use_http_protocol: bool = True,
-    **kwargs: object,
+    **kwargs: Any,
 ) -> TracedLogger:
     """All-in-one factory that creates a ``TracedLogger`` wired to an OTel backend.
 
