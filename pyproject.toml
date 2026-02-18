@@ -36,11 +36,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-psycopg2 = ["opentelemetry-instrumentation-psycopg2>=0.44b0"]
-psycopg = ["opentelemetry-instrumentation-psycopg>=0.44b0"]
+psycopg2 = ["opentelemetry-instrumentation-psycopg2>=0.60b1"]
+psycopg = ["opentelemetry-instrumentation-psycopg>=0.60b1"]
 db = [
-    "opentelemetry-instrumentation-psycopg2>=0.44b0",
-    "opentelemetry-instrumentation-psycopg>=0.44b0",
+    "opentelemetry-instrumentation-psycopg2>=0.60b1",
+    "opentelemetry-instrumentation-psycopg>=0.60b1",
 ]
 dev = [
     "pytest>=7.0",
@@ -49,10 +49,10 @@ dev = [
     "black>=23.0",
     "isort>=5.0",
     "mypy>=1.0",
-    "ruff>=0.1.0",
+    "ruff>=0.15.1",
     "simple-log-factory>=1.0.0",
-    "opentelemetry-instrumentation-psycopg2>=0.44b0",
-    "opentelemetry-instrumentation-psycopg>=0.44b0",
+    "opentelemetry-instrumentation-psycopg2>=0.60b1",
+    "opentelemetry-instrumentation-psycopg>=0.60b1",
 ]
 
 [project.urls]
