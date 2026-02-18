@@ -24,7 +24,7 @@ __all__ = [
     "setup_otel",
     "uninstrument_db",
 ]
-__version__ = "1.4.0"
+__version__ = "1.4.0rc1"
 
 _otel_logger_map: dict[str, TracedLogger] = {}
 
