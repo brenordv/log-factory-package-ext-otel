@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SUPPORTED_DRIVERS` constant listing all supported database driver names.
 - Optional dependency extras: `psycopg2`, `psycopg`, `db` (all drivers).
 
+### Removed
+- Redundant `grpc` and `http` optional dependency extras. Both OTLP exporters (gRPC and HTTP) are always installed as base dependencies.
+
 ## [1.3.0] - 2026-02-14
 ### Changed
 - `otel_log_factory()` parameter `otel_exporter_http` renamed to `otel_exporter_endpoint`.
