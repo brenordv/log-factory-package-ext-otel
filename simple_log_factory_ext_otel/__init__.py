@@ -24,9 +24,10 @@ __all__ = [
     "setup_otel",
     "uninstrument_db",
 ]
-__version__ = "1.4.0rc1"
+__version__ = "1.4.0rc2"
 
 _otel_logger_map: dict[str, TracedLogger] = {}
+_otel_tracer_map: dict[str, OtelTracer] = {}
 
 
 def setup_otel(
@@ -174,14 +175,19 @@ def otel_log_factory(
         resource=resource,
     )
 
-    otel_tracer = OtelTracer(
-        service_name=service_name,
-        endpoint=tracer_handler_url,
-        protocol=protocol,
-        resource=resource,
-    )
+    tracer_key = f"{tracer_handler_url}:{service_name}"
 
-    trace.set_tracer_provider(otel_tracer.provider)
+    if tracer_key in _otel_tracer_map:
+        otel_tracer = _otel_tracer_map[tracer_key]
+    else:
+        otel_tracer = OtelTracer(
+            service_name=service_name,
+            endpoint=tracer_handler_url,
+            protocol=protocol,
+            resource=resource,
+        )
+        trace.set_tracer_provider(otel_tracer.provider)
+        _otel_tracer_map[tracer_key] = otel_tracer
 
     existing_handlers = kwargs.get("custom_handlers")
     if existing_handlers is not None:
