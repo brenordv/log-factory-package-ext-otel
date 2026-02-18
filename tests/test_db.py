@@ -16,20 +16,7 @@ from simple_log_factory_ext_otel.db import SUPPORTED_DRIVERS, instrument_db, uni
 class TestInstrumentDb:
     """Tests for instrument_db()."""
 
-    @patch("simple_log_factory_ext_otel.db.Psycopg2Instrumentor", create=True)
-    def test_instrument_psycopg2(self, mock_cls: MagicMock) -> None:
-        instance = MagicMock()
-        instance.is_instrumented_by_opentelemetry = False
-        mock_cls.return_value = instance
-
-        with patch.dict("sys.modules", {"opentelemetry.instrumentation.psycopg2": MagicMock()}):
-            with patch(
-                "simple_log_factory_ext_otel.db._instrument_single",
-                wraps=None,
-            ) as _:
-                pass
-
-        # Use the real function with a patched import
+    def test_instrument_psycopg2(self) -> None:
         mock_instrumentor = MagicMock()
         mock_instrumentor.is_instrumented_by_opentelemetry = False
         mock_module = MagicMock()
