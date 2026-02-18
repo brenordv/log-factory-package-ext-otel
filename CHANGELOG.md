@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.4.0rc1]
+## [1.4.0rc2]
 ### Added
 - `instrument_db()` / `uninstrument_db()` — activate or deactivate OTel auto-instrumentation for database drivers (`psycopg2`, `psycopg`). Includes idempotency guard to prevent double-instrumentation.
 - `TracedLogger.instrument_db()` — convenience method that delegates to `instrument_db()`.
@@ -11,6 +11,9 @@
 ### Changed
 - Bumped minimum version for `opentelemetry-instrumentation-psycopg2` and `opentelemetry-instrumentation-psycopg` from `0.44b0` to `0.60b1`.
 - Bumped minimum `ruff` dev dependency from `0.1.0` to `0.15.1`.
+
+### Fixed
+- `otel_log_factory()` no longer emits "Overriding of current TracerProvider is not allowed" warnings when called multiple times with different `log_name` values. The `OtelTracer` is now cached and reused for the same endpoint/service combination.
 
 ### Removed
 - Redundant `grpc` and `http` optional dependency extras. Both OTLP exporters (gRPC and HTTP) are always installed as base dependencies.
