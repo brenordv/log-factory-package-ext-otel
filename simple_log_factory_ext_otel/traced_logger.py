@@ -84,6 +84,28 @@ class TracedLogger:
         self._logger.log(level, msg, *args, **kwargs)
 
     # ------------------------------------------------------------------
+    # Database instrumentation
+    # ------------------------------------------------------------------
+
+    def instrument_db(self, *drivers: str, enable_commenter: bool = False) -> list[str]:
+        """Activate OTel auto-instrumentation for database driver(s).
+
+        Convenience wrapper around
+        :func:`~simple_log_factory_ext_otel.db.instrument_db`.
+
+        Args:
+            *drivers: Driver names to instrument (e.g. ``"psycopg2"``).
+            enable_commenter: If ``True``, append SQL comments with trace
+                context to queries.
+
+        Returns:
+            List of driver names that were successfully instrumented.
+        """
+        from simple_log_factory_ext_otel.db import instrument_db
+
+        return instrument_db(*drivers, enable_commenter=enable_commenter)
+
+    # ------------------------------------------------------------------
     # Tracing helpers
     # ------------------------------------------------------------------
 

@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from simple_log_factory_ext_otel import OtelLogHandler, OtelTracer, TracedLogger, setup_otel
+from simple_log_factory_ext_otel import OtelLogHandler, OtelTracer, TracedLogger, otel_log_factory, setup_otel
 
 # ------------------------------------------------------------------
 # Helpers
@@ -221,3 +221,100 @@ class TestSetupOtel:
             stdlib_logger.removeHandler(handler)
             handler.shutdown()
             otel_tracer.shutdown()
+
+
+# ------------------------------------------------------------------
+# otel_log_factory() with instrument_db
+# ------------------------------------------------------------------
+
+
+class TestOtelLogFactoryInstrumentDb:
+    """Tests for otel_log_factory() with instrument_db parameter."""
+
+    @pytest.fixture(autouse=True)
+    def _check_simple_log_factory(self) -> None:
+        """Skip all tests in this class if simple_log_factory is not installed."""
+        pytest.importorskip("simple_log_factory")
+
+    @pytest.fixture(autouse=True)
+    def _clear_logger_cache(self) -> Any:
+        """Clear the otel_log_factory cache before each test."""
+        import simple_log_factory_ext_otel
+
+        simple_log_factory_ext_otel._otel_logger_map.clear()
+        yield
+        simple_log_factory_ext_otel._otel_logger_map.clear()
+
+    @patch("simple_log_factory_ext_otel.handler.HttpLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.HttpSpanExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.db.instrument_db")
+    def test_instrument_db_called_with_driver_and_options(
+        self, mock_instrument: MagicMock, _span: MagicMock, _log: MagicMock
+    ) -> None:
+        mock_instrument.return_value = ["psycopg2"]
+
+        otel_log_factory(
+            service_name="test-svc",
+            otel_exporter_endpoint="http://localhost:4318",
+            log_name=_unique_logger_name("test.factory.db"),
+            cache_logger=False,
+            instrument_db={"psycopg2": {"enable_commenter": True}},
+        )
+
+        mock_instrument.assert_called_once_with("psycopg2", enable_commenter=True)
+
+    @patch("simple_log_factory_ext_otel.handler.HttpLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.HttpSpanExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.db.instrument_db")
+    def test_instrument_db_called_with_empty_options(
+        self, mock_instrument: MagicMock, _span: MagicMock, _log: MagicMock
+    ) -> None:
+        mock_instrument.return_value = ["psycopg2"]
+
+        otel_log_factory(
+            service_name="test-svc",
+            otel_exporter_endpoint="http://localhost:4318",
+            log_name=_unique_logger_name("test.factory.db.empty"),
+            cache_logger=False,
+            instrument_db={"psycopg2": {}},
+        )
+
+        mock_instrument.assert_called_once_with("psycopg2")
+
+    @patch("simple_log_factory_ext_otel.handler.HttpLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.HttpSpanExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.db.instrument_db")
+    def test_instrument_db_multiple_drivers(
+        self, mock_instrument: MagicMock, _span: MagicMock, _log: MagicMock
+    ) -> None:
+        mock_instrument.return_value = ["psycopg2"]
+
+        otel_log_factory(
+            service_name="test-svc",
+            otel_exporter_endpoint="http://localhost:4318",
+            log_name=_unique_logger_name("test.factory.db.multi"),
+            cache_logger=False,
+            instrument_db={
+                "psycopg2": {"enable_commenter": True},
+                "psycopg": {},
+            },
+        )
+
+        assert mock_instrument.call_count == 2
+        mock_instrument.assert_any_call("psycopg2", enable_commenter=True)
+        mock_instrument.assert_any_call("psycopg")
+
+    @patch("simple_log_factory_ext_otel.handler.HttpLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.HttpSpanExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.db.instrument_db")
+    def test_instrument_db_not_called_when_none(
+        self, mock_instrument: MagicMock, _span: MagicMock, _log: MagicMock
+    ) -> None:
+        otel_log_factory(
+            service_name="test-svc",
+            otel_exporter_endpoint="http://localhost:4318",
+            log_name=_unique_logger_name("test.factory.db.none"),
+            cache_logger=False,
+        )
+
+        mock_instrument.assert_not_called()

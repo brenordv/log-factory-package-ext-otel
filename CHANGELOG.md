@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-02-16
+### Added
+- `instrument_db()` / `uninstrument_db()` — activate or deactivate OTel auto-instrumentation for database drivers (`psycopg2`, `psycopg`). Includes idempotency guard to prevent double-instrumentation.
+- `TracedLogger.instrument_db()` — convenience method that delegates to `instrument_db()`.
+- `otel_log_factory()` now accepts an `instrument_db` parameter (dict mapping driver names to options) for drop-in database tracing setup.
+- `SUPPORTED_DRIVERS` constant listing all supported database driver names.
+- Optional dependency extras: `psycopg2`, `psycopg`, `db` (all drivers).
+
 ## [1.3.0] - 2026-02-14
 ### Changed
 - `otel_log_factory()` parameter `otel_exporter_http` renamed to `otel_exporter_endpoint`.

@@ -8,6 +8,7 @@ from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 
 from simple_log_factory_ext_otel._resource import create_resource
+from simple_log_factory_ext_otel.db import SUPPORTED_DRIVERS, instrument_db, uninstrument_db
 from simple_log_factory_ext_otel.handler import OtelLogHandler
 from simple_log_factory_ext_otel.traced_logger import TracedLogger
 from simple_log_factory_ext_otel.tracing import OtelTracer
@@ -15,12 +16,15 @@ from simple_log_factory_ext_otel.tracing import OtelTracer
 __all__ = [
     "OtelLogHandler",
     "OtelTracer",
+    "SUPPORTED_DRIVERS",
     "TracedLogger",
     "create_resource",
+    "instrument_db",
     "otel_log_factory",
     "setup_otel",
+    "uninstrument_db",
 ]
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 _otel_logger_map: dict[str, TracedLogger] = {}
 
@@ -88,6 +92,7 @@ def otel_log_factory(
     log_name: str | None = None,
     cache_logger: bool = True,
     use_http_protocol: bool = True,
+    instrument_db: dict[str, dict[str, bool]] | None = None,
     **kwargs: Any,
 ) -> TracedLogger:
     """All-in-one factory that creates a ``TracedLogger`` wired to an OTel backend.
@@ -114,6 +119,16 @@ def otel_log_factory(
         use_http_protocol: If ``True`` use HTTP transport (appends
             ``/v1/logs`` and ``/v1/traces``); if ``False`` use gRPC
             (endpoint is used as-is).
+        instrument_db: Optional mapping of database driver names to their
+            configuration options.  When provided, activates OTel
+            auto-instrumentation for each driver after the ``TracerProvider``
+            is registered globally.  Example::
+
+                instrument_db={"psycopg2": {"enable_commenter": True}}
+
+            Supported drivers: ``"psycopg2"``, ``"psycopg"``.
+            Each value is a dict of keyword arguments forwarded to
+            :func:`~simple_log_factory_ext_otel.db.instrument_db`.
         **kwargs: Extra keyword arguments forwarded to
             ``simple_log_factory.log_factory``.
 
@@ -177,6 +192,12 @@ def otel_log_factory(
     logger = log_factory(log_name=log_name, **kwargs)
 
     otel_logger = TracedLogger(logger=logger, tracer=otel_tracer.tracer)
+
+    if instrument_db is not None:
+        from simple_log_factory_ext_otel.db import instrument_db as _do_instrument_db
+
+        for driver_name, driver_opts in instrument_db.items():
+            _do_instrument_db(driver_name, **driver_opts)
 
     if cache_logger:
         _otel_logger_map[cache_key] = otel_logger
