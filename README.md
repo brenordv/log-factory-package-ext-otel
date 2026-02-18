@@ -108,6 +108,48 @@ def fetch_user(user_id: int) -> dict:
 fetch_user(42)
 ```
 
+### Database Tracing
+
+Instrument your PostgreSQL driver so every SQL query creates an OTel span automatically.
+
+**Install the extra(s) you need:**
+
+```bash
+pip install simple-log-factory-ext-otel[psycopg2]   # psycopg2 only
+pip install simple-log-factory-ext-otel[psycopg]     # psycopg (v3) only
+pip install simple-log-factory-ext-otel[db]          # all DB drivers
+```
+
+**Style 1 — Via `otel_log_factory()` (most drop-in)**
+
+```python
+from simple_log_factory_ext_otel import otel_log_factory
+
+traced = otel_log_factory(
+    service_name="my-service",
+    otel_exporter_endpoint="http://otel-alloy:4318",
+    instrument_db={"psycopg2": {"enable_commenter": True}},
+)
+# That's it — all psycopg2 queries now produce OTel CLIENT spans.
+```
+
+**Style 2 — Via `TracedLogger` method**
+
+```python
+traced.instrument_db("psycopg2", enable_commenter=True)
+```
+
+**Style 3 — Standalone function**
+
+```python
+from simple_log_factory_ext_otel import instrument_db
+
+instrument_db("psycopg2")
+```
+
+The `enable_commenter` option appends SQL comments with trace context to
+queries, which is useful for correlating traces with `pg_stat_statements`.
+
 ## Configuration
 
 ### `OtelLogHandler` Parameters
@@ -210,6 +252,7 @@ Returns a `(OtelLogHandler, OtelTracer)` tuple. The `TracerProvider` is register
 | `log_name`                | `str`  | `service_name` | Name passed to `log_factory`. Defaults to `service_name` when `None`    |
 | `cache_logger`            | `bool` | `True`         | Cache and reuse the logger for the same endpoint/service/log-name combo |
 | `use_http_protocol`       | `bool` | `True`         | `True` for HTTP (appends `/v1/logs` and `/v1/traces`), `False` for gRPC |
+| `instrument_db`           | `dict` | `None`         | DB drivers to auto-instrument — e.g. `{"psycopg2": {"enable_commenter": True}}` |
 | `**kwargs`                |        |                | Extra keyword arguments forwarded to `simple_log_factory.log_factory`   |
 
 Returns a `TracedLogger` with both logging and tracing configured. The `TracerProvider` is registered globally. Loggers are cached by the composite key `(otel_exporter_endpoint, service_name, log_name)`, so different services or endpoints get independent loggers.

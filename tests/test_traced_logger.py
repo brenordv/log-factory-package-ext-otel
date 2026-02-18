@@ -252,3 +252,42 @@ class TestTraceDecoratorAsync:
             pass
 
         assert not inspect.iscoroutinefunction(my_sync)
+
+
+# ------------------------------------------------------------------
+# instrument_db() convenience method
+# ------------------------------------------------------------------
+
+
+class TestInstrumentDb:
+    """Tests for TracedLogger.instrument_db() delegation."""
+
+    def test_instrument_db_delegates_to_db_module(self, traced_logger: TracedLogger) -> None:
+        from unittest.mock import patch as _patch
+
+        with _patch("simple_log_factory_ext_otel.db.instrument_db") as mock_fn:
+            mock_fn.return_value = ["psycopg2"]
+            result = traced_logger.instrument_db("psycopg2")
+
+        assert result == ["psycopg2"]
+        mock_fn.assert_called_once_with("psycopg2", enable_commenter=False)
+
+    def test_instrument_db_passes_enable_commenter(self, traced_logger: TracedLogger) -> None:
+        from unittest.mock import patch as _patch
+
+        with _patch("simple_log_factory_ext_otel.db.instrument_db") as mock_fn:
+            mock_fn.return_value = ["psycopg2"]
+            result = traced_logger.instrument_db("psycopg2", enable_commenter=True)
+
+        assert result == ["psycopg2"]
+        mock_fn.assert_called_once_with("psycopg2", enable_commenter=True)
+
+    def test_instrument_db_multiple_drivers(self, traced_logger: TracedLogger) -> None:
+        from unittest.mock import patch as _patch
+
+        with _patch("simple_log_factory_ext_otel.db.instrument_db") as mock_fn:
+            mock_fn.return_value = ["psycopg2", "psycopg"]
+            result = traced_logger.instrument_db("psycopg2", "psycopg")
+
+        assert result == ["psycopg2", "psycopg"]
+        mock_fn.assert_called_once_with("psycopg2", "psycopg", enable_commenter=False)

@@ -1,9 +1,19 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## [1.4.0rc1]
+### Added
+- `instrument_db()` / `uninstrument_db()` — activate or deactivate OTel auto-instrumentation for database drivers (`psycopg2`, `psycopg`). Includes idempotency guard to prevent double-instrumentation.
+- `TracedLogger.instrument_db()` — convenience method that delegates to `instrument_db()`.
+- `otel_log_factory()` now accepts an `instrument_db` parameter (dict mapping driver names to options) for drop-in database tracing setup.
+- `SUPPORTED_DRIVERS` constant listing all supported database driver names.
+- Optional dependency extras: `psycopg2`, `psycopg`, `db` (all drivers).
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### Changed
+- Bumped minimum version for `opentelemetry-instrumentation-psycopg2` and `opentelemetry-instrumentation-psycopg` from `0.44b0` to `0.60b1`.
+- Bumped minimum `ruff` dev dependency from `0.1.0` to `0.15.1`.
+
+### Removed
+- Redundant `grpc` and `http` optional dependency extras. Both OTLP exporters (gRPC and HTTP) are always installed as base dependencies.
 
 ## [1.3.0] - 2026-02-14
 ### Changed
