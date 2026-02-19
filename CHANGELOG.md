@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.4.0rc2]
+## [1.4.0]
 ### Added
 - `instrument_db()` / `uninstrument_db()` — activate or deactivate OTel auto-instrumentation for database drivers (`psycopg2`, `psycopg`). Includes idempotency guard to prevent double-instrumentation.
 - `TracedLogger.instrument_db()` — convenience method that delegates to `instrument_db()`.
