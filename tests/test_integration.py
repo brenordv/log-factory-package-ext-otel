@@ -318,3 +318,140 @@ class TestOtelLogFactoryInstrumentDb:
         )
 
         mock_instrument.assert_not_called()
+
+
+# ------------------------------------------------------------------
+# otel_log_factory() with instrument_requests
+# ------------------------------------------------------------------
+
+
+class TestOtelLogFactoryInstrumentRequests:
+    """Tests for otel_log_factory() with instrument_requests parameter."""
+
+    @pytest.fixture(autouse=True)
+    def _check_simple_log_factory(self) -> None:
+        pytest.importorskip("simple_log_factory")
+
+    @pytest.fixture(autouse=True)
+    def _clear_logger_cache(self) -> Any:
+        import simple_log_factory_ext_otel
+
+        simple_log_factory_ext_otel._otel_logger_map.clear()
+        yield
+        simple_log_factory_ext_otel._otel_logger_map.clear()
+
+    @patch("simple_log_factory_ext_otel.handler.HttpLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.HttpSpanExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.requests_instr.instrument_requests")
+    def test_instrument_requests_called_with_true(
+        self, mock_instrument: MagicMock, _span: MagicMock, _log: MagicMock
+    ) -> None:
+        otel_log_factory(
+            service_name="test-svc",
+            otel_exporter_endpoint="http://localhost:4318",
+            log_name=_unique_logger_name("test.factory.requests.true"),
+            cache_logger=False,
+            instrument_requests=True,
+        )
+
+        mock_instrument.assert_called_once_with()
+
+    @patch("simple_log_factory_ext_otel.handler.HttpLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.HttpSpanExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.requests_instr.instrument_requests")
+    def test_instrument_requests_called_with_dict(
+        self, mock_instrument: MagicMock, _span: MagicMock, _log: MagicMock
+    ) -> None:
+        otel_log_factory(
+            service_name="test-svc",
+            otel_exporter_endpoint="http://localhost:4318",
+            log_name=_unique_logger_name("test.factory.requests.dict"),
+            cache_logger=False,
+            instrument_requests={"excluded_urls": "health,ready"},
+        )
+
+        mock_instrument.assert_called_once_with(excluded_urls="health,ready")
+
+    @patch("simple_log_factory_ext_otel.handler.HttpLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.HttpSpanExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.requests_instr.instrument_requests")
+    def test_instrument_requests_not_called_when_none(
+        self, mock_instrument: MagicMock, _span: MagicMock, _log: MagicMock
+    ) -> None:
+        otel_log_factory(
+            service_name="test-svc",
+            otel_exporter_endpoint="http://localhost:4318",
+            log_name=_unique_logger_name("test.factory.requests.none"),
+            cache_logger=False,
+        )
+
+        mock_instrument.assert_not_called()
+
+
+# ------------------------------------------------------------------
+# otel_log_factory() with instrument_fastapi
+# ------------------------------------------------------------------
+
+
+class TestOtelLogFactoryInstrumentFastapi:
+    """Tests for otel_log_factory() with instrument_fastapi parameter."""
+
+    @pytest.fixture(autouse=True)
+    def _check_simple_log_factory(self) -> None:
+        pytest.importorskip("simple_log_factory")
+
+    @pytest.fixture(autouse=True)
+    def _clear_logger_cache(self) -> Any:
+        import simple_log_factory_ext_otel
+
+        simple_log_factory_ext_otel._otel_logger_map.clear()
+        yield
+        simple_log_factory_ext_otel._otel_logger_map.clear()
+
+    @patch("simple_log_factory_ext_otel.handler.HttpLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.HttpSpanExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.fastapi_instr.instrument_fastapi")
+    def test_instrument_fastapi_called_with_true(
+        self, mock_instrument: MagicMock, _span: MagicMock, _log: MagicMock
+    ) -> None:
+        otel_log_factory(
+            service_name="test-svc",
+            otel_exporter_endpoint="http://localhost:4318",
+            log_name=_unique_logger_name("test.factory.fastapi.true"),
+            cache_logger=False,
+            instrument_fastapi=True,
+        )
+
+        mock_instrument.assert_called_once_with()
+
+    @patch("simple_log_factory_ext_otel.handler.HttpLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.HttpSpanExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.fastapi_instr.instrument_fastapi")
+    def test_instrument_fastapi_called_with_dict(
+        self, mock_instrument: MagicMock, _span: MagicMock, _log: MagicMock
+    ) -> None:
+        mock_app = MagicMock()
+        otel_log_factory(
+            service_name="test-svc",
+            otel_exporter_endpoint="http://localhost:4318",
+            log_name=_unique_logger_name("test.factory.fastapi.dict"),
+            cache_logger=False,
+            instrument_fastapi={"app": mock_app, "excluded_urls": "health"},
+        )
+
+        mock_instrument.assert_called_once_with(app=mock_app, excluded_urls="health")
+
+    @patch("simple_log_factory_ext_otel.handler.HttpLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.HttpSpanExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.fastapi_instr.instrument_fastapi")
+    def test_instrument_fastapi_not_called_when_none(
+        self, mock_instrument: MagicMock, _span: MagicMock, _log: MagicMock
+    ) -> None:
+        otel_log_factory(
+            service_name="test-svc",
+            otel_exporter_endpoint="http://localhost:4318",
+            log_name=_unique_logger_name("test.factory.fastapi.none"),
+            cache_logger=False,
+        )
+
+        mock_instrument.assert_not_called()

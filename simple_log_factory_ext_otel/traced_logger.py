@@ -106,6 +106,40 @@ class TracedLogger:
         return instrument_db(*drivers, enable_commenter=enable_commenter)
 
     # ------------------------------------------------------------------
+    # HTTP instrumentation
+    # ------------------------------------------------------------------
+
+    def instrument_requests(self, *, excluded_urls: str | None = None) -> None:
+        """Activate OTel auto-instrumentation for the ``requests`` library.
+
+        Convenience wrapper around
+        :func:`~simple_log_factory_ext_otel.requests_instr.instrument_requests`.
+
+        Args:
+            excluded_urls: Comma-delimited string of regex patterns for URLs
+                that should not be traced.
+        """
+        from simple_log_factory_ext_otel.requests_instr import instrument_requests
+
+        instrument_requests(excluded_urls=excluded_urls)
+
+    def instrument_fastapi(self, app: Any | None = None, *, excluded_urls: str | None = None) -> None:
+        """Activate OTel auto-instrumentation for FastAPI.
+
+        Convenience wrapper around
+        :func:`~simple_log_factory_ext_otel.fastapi_instr.instrument_fastapi`.
+
+        Args:
+            app: Optional ``FastAPI`` application instance.  When ``None``,
+                global instrumentation is applied.
+            excluded_urls: Comma-delimited string of regex patterns for URLs
+                that should not be traced.
+        """
+        from simple_log_factory_ext_otel.fastapi_instr import instrument_fastapi
+
+        instrument_fastapi(app=app, excluded_urls=excluded_urls)
+
+    # ------------------------------------------------------------------
     # Tracing helpers
     # ------------------------------------------------------------------
 
