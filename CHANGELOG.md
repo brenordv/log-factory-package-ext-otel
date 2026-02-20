@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.5.0]
+## [1.5.rc1]
 ### Added
 - `instrument_requests()` / `uninstrument_requests()` — activate or deactivate OTel auto-instrumentation for the `requests` library (outgoing HTTP calls). Includes idempotency guard.
 - `instrument_fastapi()` / `uninstrument_fastapi()` — activate or deactivate OTel auto-instrumentation for FastAPI (incoming HTTP requests). Supports both global and app-specific instrumentation modes. Includes idempotency guard.
