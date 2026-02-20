@@ -368,6 +368,8 @@ Returns a `(OtelLogHandler, OtelTracer)` tuple. The `TracerProvider` is register
 | `cache_logger`           | `bool` | `True`         | Cache and reuse the logger for the same endpoint/service/log-name combo         |
 | `use_http_protocol`      | `bool` | `True`         | `True` for HTTP (appends `/v1/logs` and `/v1/traces`), `False` for gRPC         |
 | `instrument_db`          | `dict` | `None`         | DB drivers to auto-instrument — e.g. `{"psycopg2": {"enable_commenter": True}}` |
+| `instrument_requests`    | `bool \| dict` | `None` | `True` for defaults or `dict` of kwargs — e.g. `{"excluded_urls": "health"}`    |
+| `instrument_fastapi`     | `bool \| dict` | `None` | `True` for defaults or `dict` of kwargs — e.g. `{"app": app, "excluded_urls": "health"}` |
 | `**kwargs`               |        |                | Extra keyword arguments forwarded to `simple_log_factory.log_factory`           |
 
 Returns a `TracedLogger` with both logging and tracing configured. The `TracerProvider` is registered globally. Loggers are cached by the composite key `(otel_exporter_endpoint, service_name, log_name)`, so different services or endpoints get independent loggers.
