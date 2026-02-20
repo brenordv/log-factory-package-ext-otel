@@ -150,6 +150,121 @@ instrument_db("psycopg2")
 The `enable_commenter` option appends SQL comments with trace context to
 queries, which is useful for correlating traces with `pg_stat_statements`.
 
+### Requests Tracing (Outgoing HTTP)
+
+Instrument the `requests` library so every outgoing HTTP call creates an OTel span automatically.
+
+**Install the extra:**
+
+```bash
+pip install simple-log-factory-ext-otel[requests]
+```
+
+**Style 1 — Via `otel_log_factory()` (most drop-in)**
+
+```python
+from simple_log_factory_ext_otel import otel_log_factory
+
+traced = otel_log_factory(
+    service_name="my-service",
+    otel_exporter_endpoint="http://otel-alloy:4318",
+    instrument_requests=True,
+)
+# All requests.get/post/… calls now produce OTel CLIENT spans.
+
+# To exclude certain URLs from tracing:
+traced = otel_log_factory(
+    service_name="my-service",
+    otel_exporter_endpoint="http://otel-alloy:4318",
+    instrument_requests={"excluded_urls": "health,ready"},
+)
+```
+
+**Style 2 — Via `TracedLogger` method**
+
+```python
+traced.instrument_requests()
+# or with exclusions:
+traced.instrument_requests(excluded_urls="health,ready")
+```
+
+**Style 3 — Standalone function**
+
+```python
+from simple_log_factory_ext_otel import instrument_requests
+
+instrument_requests()
+# or with exclusions:
+instrument_requests(excluded_urls="health,ready")
+```
+
+The `excluded_urls` parameter accepts a comma-delimited string of regex
+patterns for URLs that should not be traced.
+
+### FastAPI Tracing (Incoming HTTP)
+
+Instrument FastAPI so every incoming HTTP request creates an OTel span automatically.
+
+**Install the extra:**
+
+```bash
+pip install simple-log-factory-ext-otel[fastapi]
+```
+
+**Style 1 — Via `otel_log_factory()` (most drop-in)**
+
+```python
+from fastapi import FastAPI
+from simple_log_factory_ext_otel import otel_log_factory
+
+app = FastAPI()
+
+# Global instrumentation (all FastAPI apps):
+traced = otel_log_factory(
+    service_name="my-service",
+    otel_exporter_endpoint="http://otel-alloy:4318",
+    instrument_fastapi=True,
+)
+
+# App-specific instrumentation:
+traced = otel_log_factory(
+    service_name="my-service",
+    otel_exporter_endpoint="http://otel-alloy:4318",
+    instrument_fastapi={"app": app, "excluded_urls": "health"},
+)
+```
+
+**Style 2 — Via `TracedLogger` method**
+
+```python
+traced.instrument_fastapi()                     # global
+traced.instrument_fastapi(app=app)              # app-specific
+traced.instrument_fastapi(excluded_urls="health")  # with exclusions
+```
+
+**Style 3 — Standalone function**
+
+```python
+from simple_log_factory_ext_otel import instrument_fastapi
+
+instrument_fastapi()                     # global
+instrument_fastapi(app=app)              # app-specific
+instrument_fastapi(excluded_urls="health")  # with exclusions
+```
+
+The `excluded_urls` parameter accepts a comma-delimited string of regex
+patterns for URLs that should not be traced.
+
+### Cross-Resource Instrumentation
+
+To install all HTTP instrumentation extras at once:
+
+```bash
+pip install simple-log-factory-ext-otel[cross-resource]
+```
+
+This installs both `requests` and `fastapi` instrumentation packages.
+
 ## Configuration
 
 ### `OtelLogHandler` Parameters
@@ -245,15 +360,15 @@ Returns a `(OtelLogHandler, OtelTracer)` tuple. The `TracerProvider` is register
 
 ### `otel_log_factory()` Parameters
 
-| Parameter                 | Type   | Default        | Description                                                             |
-|---------------------------|--------|----------------|-------------------------------------------------------------------------|
-| `service_name`            | `str`  | *(required)*   | Logical name of the service                                             |
-| `otel_exporter_endpoint`  | `str`  | *(required)*   | Base URL of the OTel collector (e.g. `http://localhost:4318`)           |
-| `log_name`                | `str`  | `service_name` | Name passed to `log_factory`. Defaults to `service_name` when `None`    |
-| `cache_logger`            | `bool` | `True`         | Cache and reuse the logger for the same endpoint/service/log-name combo |
-| `use_http_protocol`       | `bool` | `True`         | `True` for HTTP (appends `/v1/logs` and `/v1/traces`), `False` for gRPC |
-| `instrument_db`           | `dict` | `None`         | DB drivers to auto-instrument — e.g. `{"psycopg2": {"enable_commenter": True}}` |
-| `**kwargs`                |        |                | Extra keyword arguments forwarded to `simple_log_factory.log_factory`   |
+| Parameter                | Type   | Default        | Description                                                                     |
+|--------------------------|--------|----------------|---------------------------------------------------------------------------------|
+| `service_name`           | `str`  | *(required)*   | Logical name of the service                                                     |
+| `otel_exporter_endpoint` | `str`  | *(required)*   | Base URL of the OTel collector (e.g. `http://localhost:4318`)                   |
+| `log_name`               | `str`  | `service_name` | Name passed to `log_factory`. Defaults to `service_name` when `None`            |
+| `cache_logger`           | `bool` | `True`         | Cache and reuse the logger for the same endpoint/service/log-name combo         |
+| `use_http_protocol`      | `bool` | `True`         | `True` for HTTP (appends `/v1/logs` and `/v1/traces`), `False` for gRPC         |
+| `instrument_db`          | `dict` | `None`         | DB drivers to auto-instrument — e.g. `{"psycopg2": {"enable_commenter": True}}` |
+| `**kwargs`               |        |                | Extra keyword arguments forwarded to `simple_log_factory.log_factory`           |
 
 Returns a `TracedLogger` with both logging and tracing configured. The `TracerProvider` is registered globally. Loggers are cached by the composite key `(otel_exporter_endpoint, service_name, log_name)`, so different services or endpoints get independent loggers.
 

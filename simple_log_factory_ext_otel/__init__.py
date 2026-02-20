@@ -9,7 +9,9 @@ from opentelemetry.sdk.resources import Resource
 
 from simple_log_factory_ext_otel._resource import create_resource
 from simple_log_factory_ext_otel.db import SUPPORTED_DRIVERS, instrument_db, uninstrument_db
+from simple_log_factory_ext_otel.fastapi_instr import instrument_fastapi, uninstrument_fastapi
 from simple_log_factory_ext_otel.handler import OtelLogHandler
+from simple_log_factory_ext_otel.requests_instr import instrument_requests, uninstrument_requests
 from simple_log_factory_ext_otel.traced_logger import TracedLogger
 from simple_log_factory_ext_otel.tracing import OtelTracer
 
@@ -20,11 +22,15 @@ __all__ = [
     "TracedLogger",
     "create_resource",
     "instrument_db",
+    "instrument_fastapi",
+    "instrument_requests",
     "otel_log_factory",
     "setup_otel",
     "uninstrument_db",
+    "uninstrument_fastapi",
+    "uninstrument_requests",
 ]
-__version__ = "1.4.0"
+__version__ = "1.5.0rc1"
 
 _otel_logger_map: dict[str, TracedLogger] = {}
 _otel_tracer_map: dict[str, OtelTracer] = {}
@@ -94,6 +100,8 @@ def otel_log_factory(
     cache_logger: bool = True,
     use_http_protocol: bool = True,
     instrument_db: dict[str, dict[str, bool]] | None = None,
+    instrument_requests: bool | dict[str, Any] | None = None,
+    instrument_fastapi: bool | dict[str, Any] | None = None,
     **kwargs: Any,
 ) -> TracedLogger:
     """All-in-one factory that creates a ``TracedLogger`` wired to an OTel backend.
@@ -130,6 +138,16 @@ def otel_log_factory(
             Supported drivers: ``"psycopg2"``, ``"psycopg"``.
             Each value is a dict of keyword arguments forwarded to
             :func:`~simple_log_factory_ext_otel.db.instrument_db`.
+        instrument_requests: Controls ``requests`` library instrumentation.
+            ``None`` (default) disables it; ``True`` instruments with defaults;
+            a ``dict`` is unpacked as keyword arguments to
+            :func:`~simple_log_factory_ext_otel.requests_instr.instrument_requests`
+            (e.g. ``{"excluded_urls": "health,ready"}``).
+        instrument_fastapi: Controls FastAPI instrumentation.
+            ``None`` (default) disables it; ``True`` instruments with defaults;
+            a ``dict`` is unpacked as keyword arguments to
+            :func:`~simple_log_factory_ext_otel.fastapi_instr.instrument_fastapi`
+            (e.g. ``{"app": my_app, "excluded_urls": "health"}``).
         **kwargs: Extra keyword arguments forwarded to
             ``simple_log_factory.log_factory``.
 
@@ -204,6 +222,18 @@ def otel_log_factory(
 
         for driver_name, driver_opts in instrument_db.items():
             _do_instrument_db(driver_name, **driver_opts)
+
+    if instrument_requests is not None:
+        from simple_log_factory_ext_otel.requests_instr import instrument_requests as _do_instrument_requests
+
+        opts = instrument_requests if isinstance(instrument_requests, dict) else {}
+        _do_instrument_requests(**opts)
+
+    if instrument_fastapi is not None:
+        from simple_log_factory_ext_otel.fastapi_instr import instrument_fastapi as _do_instrument_fastapi
+
+        opts = instrument_fastapi if isinstance(instrument_fastapi, dict) else {}
+        _do_instrument_fastapi(**opts)
 
     if cache_logger:
         _otel_logger_map[cache_key] = otel_logger
