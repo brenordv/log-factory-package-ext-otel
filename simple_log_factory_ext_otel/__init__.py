@@ -30,7 +30,7 @@ __all__ = [
     "uninstrument_fastapi",
     "uninstrument_requests",
 ]
-__version__ = "1.5.0rc1"
+__version__ = "1.5.0"
 
 _otel_logger_map: dict[str, TracedLogger] = {}
 _otel_tracer_map: dict[str, OtelTracer] = {}
