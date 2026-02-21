@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.5.rc1]
+## [1.5.0] - 2026-02-20
 ### Added
 - `instrument_requests()` / `uninstrument_requests()` — activate or deactivate OTel auto-instrumentation for the `requests` library (outgoing HTTP calls). Includes idempotency guard.
 - `instrument_fastapi()` / `uninstrument_fastapi()` — activate or deactivate OTel auto-instrumentation for FastAPI (incoming HTTP requests). Supports both global and app-specific instrumentation modes. Includes idempotency guard.
@@ -9,7 +9,7 @@
 - `otel_log_factory()` now accepts `instrument_requests` and `instrument_fastapi` parameters for drop-in HTTP tracing setup. Accepts `True` for defaults or a `dict` of kwargs forwarded to the standalone function.
 - Optional dependency extras: `requests`, `fastapi`, `cross-resource` (both).
 
-## [1.4.0]
+## [1.4.0] - 2026-02-18
 ### Added
 - `instrument_db()` / `uninstrument_db()` — activate or deactivate OTel auto-instrumentation for database drivers (`psycopg2`, `psycopg`). Includes idempotency guard to prevent double-instrumentation.
 - `TracedLogger.instrument_db()` — convenience method that delegates to `instrument_db()`.
