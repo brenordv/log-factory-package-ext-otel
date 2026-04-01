@@ -64,9 +64,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/raccoon/simple-log-factory-ext-otel"
-Repository = "https://github.com/raccoon/simple-log-factory-ext-otel"
-Issues = "https://github.com/raccoon/simple-log-factory-ext-otel/issues"
+Homepage = "https://github.com/brenordv/log-factory-package-ext-otel"
+Repository = "https://github.com/brenordv/log-factory-package-ext-otel"
+Issues = "https://github.com/brenordv/log-factory-package-ext-otel/issues"
 
 [tool.setuptools.packages.find]
 include = ["simple_log_factory_ext_otel*"]
