@@ -69,7 +69,7 @@ class TestOtelTracerInit:
             endpoint="http://otel:4317",
             insecure=False,
             headers={"x-api-key": "secret"},
-            timeout=5000,
+            timeout=5.0,
         )
 
     @patch("simple_log_factory_ext_otel.tracing.HttpSpanExporter")
@@ -85,7 +85,7 @@ class TestOtelTracerInit:
         mock_http_cls.assert_called_once_with(
             endpoint="http://otel:4318/v1/traces",
             headers={"Authorization": "Bearer tok"},
-            timeout=10000,
+            timeout=10.0,
         )
 
 

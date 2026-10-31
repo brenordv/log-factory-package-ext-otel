@@ -8,7 +8,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-from opentelemetry.sdk._logs.export import LogExportResult
+from opentelemetry.sdk._logs.export import LogRecordExportResult
 from opentelemetry.sdk.trace.export import SpanExportResult
 
 from simple_log_factory_ext_otel import OtelLogHandler
@@ -26,11 +26,11 @@ class InMemoryLogExporter:
         self.records: list[Any] = []
         self._shutdown = False
 
-    def export(self, batch: Any) -> LogExportResult:
+    def export(self, batch: Any) -> LogRecordExportResult:
         if self._shutdown:
-            return LogExportResult.FAILURE
+            return LogRecordExportResult.FAILURE
         self.records.extend(batch)
-        return LogExportResult.SUCCESS
+        return LogRecordExportResult.SUCCESS
 
     def shutdown(self) -> None:
         self._shutdown = True

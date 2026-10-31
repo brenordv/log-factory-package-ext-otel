@@ -79,7 +79,7 @@ def _instrument_single(driver: str, *, enable_commenter: bool) -> None:
             from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
         except ImportError:
             raise ImportError(
-                "To instrument psycopg2, install the extra: " "pip install simple-log-factory-ext-otel[psycopg2]"
+                "To instrument psycopg2, install the extra: pip install simple-log-factory-ext-otel[psycopg2]"
             )
 
         instrumentor = Psycopg2Instrumentor()
@@ -91,7 +91,7 @@ def _instrument_single(driver: str, *, enable_commenter: bool) -> None:
             from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
         except ImportError:
             raise ImportError(
-                "To instrument psycopg, install the extra: " "pip install simple-log-factory-ext-otel[psycopg]"
+                "To instrument psycopg, install the extra: pip install simple-log-factory-ext-otel[psycopg]"
             )
 
         instrumentor = PsycopgInstrumentor()
@@ -106,7 +106,7 @@ def _uninstrument_single(driver: str) -> None:
             from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
         except ImportError:
             raise ImportError(
-                "To uninstrument psycopg2, install the extra: " "pip install simple-log-factory-ext-otel[psycopg2]"
+                "To uninstrument psycopg2, install the extra: pip install simple-log-factory-ext-otel[psycopg2]"
             )
 
         Psycopg2Instrumentor().uninstrument()
@@ -116,7 +116,7 @@ def _uninstrument_single(driver: str) -> None:
             from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
         except ImportError:
             raise ImportError(
-                "To uninstrument psycopg, install the extra: " "pip install simple-log-factory-ext-otel[psycopg]"
+                "To uninstrument psycopg, install the extra: pip install simple-log-factory-ext-otel[psycopg]"
             )
 
         PsycopgInstrumentor().uninstrument()

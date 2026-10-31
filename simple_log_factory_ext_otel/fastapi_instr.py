@@ -36,9 +36,7 @@ def instrument_fastapi(app: Any | None = None, *, excluded_urls: str | None = No
     try:
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
     except ImportError:
-        raise ImportError(
-            "To instrument FastAPI, install the extra: " "pip install simple-log-factory-ext-otel[fastapi]"
-        )
+        raise ImportError("To instrument FastAPI, install the extra: pip install simple-log-factory-ext-otel[fastapi]")
 
     if app is not None:
         kwargs: dict[str, Any] = {}
@@ -69,7 +67,7 @@ def uninstrument_fastapi(app: Any | None = None) -> None:
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
     except ImportError:
         raise ImportError(
-            "To uninstrument FastAPI, install the extra: " "pip install simple-log-factory-ext-otel[fastapi]"
+            "To uninstrument FastAPI, install the extra: pip install simple-log-factory-ext-otel[fastapi]"
         )
 
     if app is not None:

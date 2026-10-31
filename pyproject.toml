@@ -1,15 +1,15 @@
 [build-system]
-requires = ["setuptools>=68.0", "wheel"]
+requires = ["setuptools>=84.2.1", "wheel>=0.48.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "simple-log-factory-ext-otel"
-version = "1.5.0"
+version = "2.0.0"
 description = "OpenTelemetry log handler and tracing plugin for simple_log_factory"
 readme = "README.md"
 license = "GPL-3.0-only"
 license-files = ["LICENSE.md"]
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 authors = [
     {name = "Breno RdV"},
 ]
@@ -17,8 +17,6 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -29,38 +27,39 @@ classifiers = [
 keywords = ["logging", "opentelemetry", "otel", "observability", "simple-log-factory", "tracing", "traces", "spans"]
 
 dependencies = [
-    "opentelemetry-api>=1.20.0",
-    "opentelemetry-sdk>=1.20.0",
-    "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
-    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
+    "opentelemetry-api>=1.45.2",
+    "opentelemetry-sdk>=1.45.2",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.45.2",
+    "opentelemetry-exporter-otlp-proto-http>=1.45.2",
+    "opentelemetry-instrumentation-logging>=0.66b2",
+    "simple-log-factory>=2.0.0",
 ]
 
 [project.optional-dependencies]
-psycopg2 = ["opentelemetry-instrumentation-psycopg2>=0.60b1"]
-psycopg = ["opentelemetry-instrumentation-psycopg>=0.60b1"]
+psycopg2 = ["opentelemetry-instrumentation-psycopg2>=0.66b2"]
+psycopg = ["opentelemetry-instrumentation-psycopg>=0.66b2"]
 db = [
-    "opentelemetry-instrumentation-psycopg2>=0.60b1",
-    "opentelemetry-instrumentation-psycopg>=0.60b1",
+    "opentelemetry-instrumentation-psycopg2>=0.66b2",
+    "opentelemetry-instrumentation-psycopg>=0.66b2",
 ]
-requests = ["opentelemetry-instrumentation-requests>=0.60b1"]
-fastapi = ["opentelemetry-instrumentation-fastapi>=0.60b1"]
+requests = ["opentelemetry-instrumentation-requests>=0.66b2"]
+fastapi = ["opentelemetry-instrumentation-fastapi>=0.66b2"]
 cross-resource = [
-    "opentelemetry-instrumentation-requests>=0.60b1",
-    "opentelemetry-instrumentation-fastapi>=0.60b1",
+    "opentelemetry-instrumentation-requests>=0.66b2",
+    "opentelemetry-instrumentation-fastapi>=0.66b2",
 ]
+
+[dependency-groups]
 dev = [
-    "pytest>=7.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.0",
-    "black>=23.0",
-    "isort>=5.0",
-    "mypy>=1.0",
-    "ruff>=0.15.1",
-    "simple-log-factory>=1.0.0",
-    "opentelemetry-instrumentation-psycopg2>=0.60b1",
-    "opentelemetry-instrumentation-psycopg>=0.60b1",
-    "opentelemetry-instrumentation-requests>=0.60b1",
-    "opentelemetry-instrumentation-fastapi>=0.60b1",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.4.1",
+    "pytest-cov>=7.1.0",
+    "mypy>=2.4.1",
+    "ruff>=0.17.3",
+    "opentelemetry-instrumentation-psycopg2>=0.66b2",
+    "opentelemetry-instrumentation-psycopg>=0.66b2",
+    "opentelemetry-instrumentation-requests>=0.66b2",
+    "opentelemetry-instrumentation-fastapi>=0.66b2",
 ]
 
 [project.urls]
@@ -71,23 +70,15 @@ Issues = "https://github.com/brenordv/log-factory-package-ext-otel/issues"
 [tool.setuptools.packages.find]
 include = ["simple_log_factory_ext_otel*"]
 
-[tool.black]
-line-length = 120
-target-version = ["py39"]
-
-[tool.isort]
-profile = "black"
-line_length = 120
-
 [tool.ruff]
 line-length = 120
-target-version = "py39"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP"]
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.11"
 disallow_untyped_defs = true
 strict = true
 
@@ -99,3 +90,4 @@ ignore_missing_imports = true
 addopts = "-v"
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

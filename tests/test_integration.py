@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from importlib.metadata import requires
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -455,3 +456,110 @@ class TestOtelLogFactoryInstrumentFastapi:
         )
 
         mock_instrument.assert_not_called()
+
+
+# ------------------------------------------------------------------
+# otel_log_factory(): argument handling
+# ------------------------------------------------------------------
+
+
+class TestOtelLogFactoryArguments:
+    """Tests for otel_log_factory() validation, caching, protocols, and custom_handlers handling."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_logger_cache(self) -> Any:
+        """Clear the otel_log_factory cache before and after each test."""
+        import simple_log_factory_ext_otel
+
+        simple_log_factory_ext_otel._otel_logger_map.clear()
+        yield
+        simple_log_factory_ext_otel._otel_logger_map.clear()
+
+    @pytest.mark.parametrize("service_name", ["", "   "])
+    def test_blank_service_name_raises(self, service_name: str) -> None:
+        with pytest.raises(ValueError, match="service_name must be set"):
+            otel_log_factory(service_name=service_name, otel_exporter_endpoint="http://localhost:4318")
+
+    @pytest.mark.parametrize("endpoint", ["", "   "])
+    def test_blank_endpoint_raises(self, endpoint: str) -> None:
+        with pytest.raises(ValueError, match="otel_exporter_endpoint must be set"):
+            otel_log_factory(service_name="test-svc", otel_exporter_endpoint=endpoint)
+
+    @patch("simple_log_factory_ext_otel.handler.HttpLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.HttpSpanExporter", return_value=MagicMock())
+    def test_cached_logger_is_returned_and_log_name_defaults_to_service_name(
+        self, _span: MagicMock, _log: MagicMock
+    ) -> None:
+        service_name = _unique_logger_name("test-svc-cache")
+
+        first = otel_log_factory(service_name=service_name, otel_exporter_endpoint="http://localhost:4318")
+        second = otel_log_factory(service_name=service_name, otel_exporter_endpoint="http://localhost:4318")
+
+        assert second is first
+        assert first.logger.name == service_name
+
+    @patch("simple_log_factory_ext_otel.handler.GrpcLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.GrpcSpanExporter", return_value=MagicMock())
+    def test_grpc_protocol_uses_endpoint_as_is(self, mock_span: MagicMock, mock_log: MagicMock) -> None:
+        otel_log_factory(
+            service_name=_unique_logger_name("test-svc-grpc"),
+            otel_exporter_endpoint="localhost:4317",
+            cache_logger=False,
+            use_http_protocol=False,
+            to_console=False,
+        )
+
+        assert mock_log.call_args.kwargs["endpoint"] == "localhost:4317"
+        assert mock_span.call_args.kwargs["endpoint"] == "localhost:4317"
+
+    @patch("simple_log_factory_ext_otel.handler.HttpLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.HttpSpanExporter", return_value=MagicMock())
+    def test_custom_handler_list_is_kept_next_to_otel_handler(self, _span: MagicMock, _log: MagicMock) -> None:
+        first_handler = logging.NullHandler()
+        second_handler = logging.NullHandler()
+
+        traced = otel_log_factory(
+            service_name="test-svc",
+            otel_exporter_endpoint="http://localhost:4318",
+            log_name=_unique_logger_name("test.factory.handler_list"),
+            cache_logger=False,
+            custom_handlers=[first_handler, second_handler],
+            to_console=False,
+        )
+
+        assert first_handler in traced.logger.handlers
+        assert second_handler in traced.logger.handlers
+        assert any(isinstance(handler, OtelLogHandler) for handler in traced.logger.handlers)
+
+    @patch("simple_log_factory_ext_otel.handler.HttpLogExporter", return_value=MagicMock())
+    @patch("simple_log_factory_ext_otel.tracing.HttpSpanExporter", return_value=MagicMock())
+    def test_single_custom_handler_is_kept_next_to_otel_handler(self, _span: MagicMock, _log: MagicMock) -> None:
+        extra_handler = logging.NullHandler()
+
+        traced = otel_log_factory(
+            service_name="test-svc",
+            otel_exporter_endpoint="http://localhost:4318",
+            log_name=_unique_logger_name("test.factory.single_handler"),
+            cache_logger=False,
+            custom_handlers=extra_handler,
+            to_console=False,
+        )
+
+        assert extra_handler in traced.logger.handlers
+        assert any(isinstance(handler, OtelLogHandler) for handler in traced.logger.handlers)
+
+
+# ------------------------------------------------------------------
+# Package metadata
+# ------------------------------------------------------------------
+
+
+class TestPackageMetadata:
+    """Tests for the published package metadata."""
+
+    def test_simple_log_factory_is_a_runtime_dependency(self) -> None:
+        requirements = requires("simple-log-factory-ext-otel") or []
+
+        runtime_requirements = [requirement for requirement in requirements if "extra ==" not in requirement]
+
+        assert any(requirement.startswith("simple-log-factory") for requirement in runtime_requirements)

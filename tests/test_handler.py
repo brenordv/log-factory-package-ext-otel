@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import logging
+import logging.config
+import uuid
 from unittest.mock import MagicMock, patch
 
 import pytest
 from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk.resources import Resource
+from opentelemetry.semconv.attributes import code_attributes
 
 from simple_log_factory_ext_otel import OtelLogHandler
+from tests.conftest import InMemoryLogExporter
 
 # ------------------------------------------------------------------
 # Initialization
@@ -77,7 +81,7 @@ class TestHandlerInit:
             endpoint="http://otel:4317",
             insecure=False,
             headers={"x-api-key": "secret"},
-            timeout=5000,
+            timeout=5.0,
         )
 
     @patch("simple_log_factory_ext_otel.handler.HttpLogExporter")
@@ -93,7 +97,7 @@ class TestHandlerInit:
         mock_http_cls.assert_called_once_with(
             endpoint="http://otel:4318/v1/logs",
             headers={"Authorization": "Bearer tok"},
-            timeout=10000,
+            timeout=10.0,
         )
 
     @patch("simple_log_factory_ext_otel.handler.GrpcLogExporter")
@@ -196,12 +200,46 @@ class TestShutdown:
         # Provider.shutdown should only be called once
         grpc_handler._provider.shutdown.assert_called_once()
 
-    def test_close_triggers_shutdown(self, grpc_handler: OtelLogHandler) -> None:
+    def test_close_flushes_without_shutting_down_provider(self, grpc_handler: OtelLogHandler) -> None:
         grpc_handler._provider = MagicMock(spec=LoggerProvider)
         grpc_handler._shutdown_called = False
 
         grpc_handler.close()
-        grpc_handler._provider.shutdown.assert_called_once()
+
+        grpc_handler._provider.force_flush.assert_called_once()
+        grpc_handler._provider.shutdown.assert_not_called()
+
+    def test_handler_keeps_exporting_after_dict_config(self) -> None:
+        exporter = InMemoryLogExporter()
+        with patch("simple_log_factory_ext_otel.handler.GrpcLogExporter", return_value=exporter):
+            handler = OtelLogHandler(service_name="svc")
+        logger = logging.getLogger(f"test.handler.dictconfig.{uuid.uuid4().hex[:8]}")
+        logger.setLevel(logging.INFO)
+        logger.addHandler(handler)
+
+        logging.config.dictConfig({"version": 1, "disable_existing_loggers": False})
+        logger.info("after reconfiguration")
+        handler.flush()
+
+        assert len(exporter.records) == 1
+        logger.removeHandler(handler)
+        handler.shutdown()
+
+    def test_exported_record_names_the_calling_function(self) -> None:
+        exporter = InMemoryLogExporter()
+        with patch("simple_log_factory_ext_otel.handler.GrpcLogExporter", return_value=exporter):
+            handler = OtelLogHandler(service_name="svc")
+        logger = logging.getLogger(f"test.handler.code_attributes.{uuid.uuid4().hex[:8]}")
+        logger.setLevel(logging.INFO)
+        logger.addHandler(handler)
+
+        logger.info("where was this logged")
+        handler.flush()
+
+        attributes = exporter.records[0].log_record.attributes
+        assert attributes[code_attributes.CODE_FUNCTION_NAME] == "test_exported_record_names_the_calling_function"
+        logger.removeHandler(handler)
+        handler.shutdown()
 
 
 # ------------------------------------------------------------------

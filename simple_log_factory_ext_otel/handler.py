@@ -13,7 +13,8 @@ import logging
 
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter as GrpcLogExporter
 from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter as HttpLogExporter
-from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.instrumentation.logging.handler import LoggingHandler
+from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.resources import Resource
 
@@ -21,6 +22,7 @@ from simple_log_factory_ext_otel._constants import (
     DEFAULT_ENDPOINT,
     DEFAULT_EXPORT_TIMEOUT_MILLIS,
     DEFAULT_PROTOCOL,
+    MILLIS_PER_SECOND,
     VALID_PROTOCOLS,
 )
 from simple_log_factory_ext_otel._resource import create_resource
@@ -33,8 +35,8 @@ class OtelLogHandler(logging.Handler):
     ``custom_handlers`` parameter.  Internally manages the OTel
     ``LoggerProvider``, exporter, and processor lifecycle.
 
-    The handler uses **composition** rather than inheriting from the OTel SDK's
-    ``LoggingHandler``.  This is critical because ``log_factory`` calls
+    The handler uses **composition** rather than inheriting from the OTel
+    ``LoggingHandler`` (from ``opentelemetry-instrumentation-logging``).  This is critical because ``log_factory`` calls
     ``handler.setFormatter()`` and ``handler.setLevel()`` on every handler it
     receives — if we inherited from ``LoggingHandler``, the factory's formatter
     would overwrite OTel's internal translation.  By wrapping it, both
@@ -109,7 +111,7 @@ class OtelLogHandler(logging.Handler):
         self._provider.add_log_record_processor(self._processor)
 
         # --- Inner OTel handler (does LogRecord → OTel translation) ----
-        self._otel_handler = LoggingHandler(logger_provider=self._provider)
+        self._otel_handler = LoggingHandler(logger_provider=self._provider, log_code_attributes=True)
 
         self._shutdown_called = False
         atexit.register(self.shutdown)
@@ -143,11 +145,18 @@ class OtelLogHandler(logging.Handler):
         if self._shutdown_called:
             return
         self._shutdown_called = True
-        self._provider.shutdown()  # type: ignore[no-untyped-call]
+        self._provider.shutdown()
 
     def close(self) -> None:
-        """Called by the logging framework on handler removal."""
-        self.shutdown()
+        """Flush buffered records and release the handler.
+
+        The logging framework calls this on handler removal and whenever
+        ``logging.config.dictConfig``/``fileConfig`` reconfigures logging
+        (uvicorn does so at startup). The handler stays attached to its
+        loggers after such a reconfiguration, so the OTel pipeline keeps
+        running; call :meth:`shutdown` to stop it, or let the atexit hook do it.
+        """
+        self.flush()
         super().close()
 
     # ------------------------------------------------------------------
@@ -167,17 +176,21 @@ class OtelLogHandler(logging.Handler):
         headers: dict[str, str] | None,
         timeout: int,
     ) -> GrpcLogExporter | HttpLogExporter:
-        """Instantiate the appropriate OTLP log exporter."""
+        """Instantiate the appropriate OTLP log exporter.
+
+        *timeout* is in milliseconds; the OTLP exporters take seconds.
+        """
+        timeout_seconds = timeout / MILLIS_PER_SECOND
         if protocol == "grpc":
             return GrpcLogExporter(
                 endpoint=endpoint,
                 insecure=insecure,
                 headers=headers or {},
-                timeout=timeout,
+                timeout=timeout_seconds,
             )
         # protocol == "http"
         return HttpLogExporter(
             endpoint=endpoint,
             headers=headers or {},
-            timeout=timeout,
+            timeout=timeout_seconds,
         )

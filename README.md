@@ -96,14 +96,16 @@ traced = TracedLogger(logger=logger, tracer=otel_tracer.tracer)
 
 # 4. Use span() to create correlated spans
 with traced.span("process-order", attributes={"order.id": "123"}):
-    traced.info("Processing order")   # auto-correlated with the span
+    traced.info("Processing order")  # auto-correlated with the span
     # ... your business logic ...
+
 
 # 5. Or use @trace() as a decorator
 @traced.trace("fetch-user")
 def fetch_user(user_id: int) -> dict:
     traced.info("Fetching user %d", user_id)
     return {"id": user_id, "name": "Alice"}
+
 
 fetch_user(42)
 ```
@@ -237,8 +239,8 @@ traced = otel_log_factory(
 **Style 2 — Via `TracedLogger` method**
 
 ```python
-traced.instrument_fastapi()                     # global
-traced.instrument_fastapi(app=app)              # app-specific
+traced.instrument_fastapi()  # global
+traced.instrument_fastapi(app=app)  # app-specific
 traced.instrument_fastapi(excluded_urls="health")  # with exclusions
 ```
 
@@ -247,8 +249,8 @@ traced.instrument_fastapi(excluded_urls="health")  # with exclusions
 ```python
 from simple_log_factory_ext_otel import instrument_fastapi
 
-instrument_fastapi()                     # global
-instrument_fastapi(app=app)              # app-specific
+instrument_fastapi()  # global
+instrument_fastapi(app=app)  # app-specific
 instrument_fastapi(excluded_urls="health")  # with exclusions
 ```
 
@@ -406,28 +408,31 @@ otel_handler.flush()
 otel_handler.shutdown()
 ```
 
+`close()`, which the logging framework calls when a handler is removed or when `logging.config.dictConfig` reconfigures
+logging (uvicorn does this at startup), only flushes. The OTel pipeline keeps running until `shutdown()` or the
+`atexit` hook.
+
 ## Local Development
 
-Create a virtual environment with [UV](https://docs.astral.sh/uv/):
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). `uv sync` creates the environment with the package and
+the `dev` dependency group:
 
 ```bash
-uv venv
-uv pip install -e ".[dev]"
+uv sync
 ```
 
 Run tests:
 
 ```bash
-pytest --cov=simple_log_factory_ext_otel --cov-report=term-missing
+uv run pytest --cov=simple_log_factory_ext_otel --cov-report=term-missing
 ```
 
 Run linters:
 
 ```bash
-black --check .
-isort --check .
-ruff check .
-mypy simple_log_factory_ext_otel
+uv run ruff format --check .
+uv run ruff check .
+uv run mypy simple_log_factory_ext_otel
 ```
 
 ## License
