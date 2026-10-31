@@ -8,7 +8,9 @@ from unittest.mock import MagicMock
 
 import pytest
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.trace import get_current_span
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode, get_current_span
 
 from simple_log_factory_ext_otel.traced_logger import TracedLogger
 
@@ -25,6 +27,28 @@ def traced_logger(tracer_provider: TracerProvider) -> TracedLogger:
     tracer = tracer_provider.get_tracer("test")
     logger = MagicMock(spec=logging.Logger)
     return TracedLogger(logger=logger, tracer=tracer)
+
+
+@pytest.fixture()
+def span_exporter() -> InMemorySpanExporter:
+    """In-memory exporter that collects every finished span."""
+    return InMemorySpanExporter()
+
+
+@pytest.fixture()
+def recording_traced_logger(span_exporter: InMemorySpanExporter) -> TracedLogger:
+    """Create a TracedLogger whose finished spans land in ``span_exporter``."""
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(span_exporter))
+    return TracedLogger(logger=MagicMock(spec=logging.Logger), tracer=provider.get_tracer("test"))
+
+
+@pytest.fixture()
+def real_traced_logger(tracer_provider: TracerProvider, request: pytest.FixtureRequest) -> TracedLogger:
+    """Create a TracedLogger backed by a real ``logging.Logger`` named after the test."""
+    logger = logging.getLogger(f"test.traced_logger.{request.node.name}")
+    logger.setLevel(logging.DEBUG)
+    return TracedLogger(logger=logger, tracer=tracer_provider.get_tracer("test"))
 
 
 # ------------------------------------------------------------------
@@ -52,31 +76,58 @@ class TestLoggingProxies:
 
     def test_debug(self, traced_logger: TracedLogger) -> None:
         traced_logger.debug("msg %s", "arg")
-        traced_logger.logger.debug.assert_called_once_with("msg %s", "arg")
+        traced_logger.logger.debug.assert_called_once_with("msg %s", "arg", stacklevel=2)
 
     def test_info(self, traced_logger: TracedLogger) -> None:
         traced_logger.info("msg")
-        traced_logger.logger.info.assert_called_once_with("msg")
+        traced_logger.logger.info.assert_called_once_with("msg", stacklevel=2)
 
     def test_warning(self, traced_logger: TracedLogger) -> None:
         traced_logger.warning("msg")
-        traced_logger.logger.warning.assert_called_once_with("msg")
+        traced_logger.logger.warning.assert_called_once_with("msg", stacklevel=2)
 
     def test_error(self, traced_logger: TracedLogger) -> None:
         traced_logger.error("msg")
-        traced_logger.logger.error.assert_called_once_with("msg")
+        traced_logger.logger.error.assert_called_once_with("msg", stacklevel=2)
 
     def test_exception(self, traced_logger: TracedLogger) -> None:
         traced_logger.exception("msg")
-        traced_logger.logger.exception.assert_called_once_with("msg")
+        traced_logger.logger.exception.assert_called_once_with("msg", stacklevel=2)
 
     def test_critical(self, traced_logger: TracedLogger) -> None:
         traced_logger.critical("msg")
-        traced_logger.logger.critical.assert_called_once_with("msg")
+        traced_logger.logger.critical.assert_called_once_with("msg", stacklevel=2)
 
     def test_log(self, traced_logger: TracedLogger) -> None:
         traced_logger.log(logging.INFO, "msg")
-        traced_logger.logger.log.assert_called_once_with(logging.INFO, "msg")
+        traced_logger.logger.log.assert_called_once_with(logging.INFO, "msg", stacklevel=2)
+
+    def test_caller_stacklevel_is_offset_by_one(self, traced_logger: TracedLogger) -> None:
+        traced_logger.info("msg", stacklevel=3)
+        traced_logger.logger.info.assert_called_once_with("msg", stacklevel=4)
+
+
+class TestLoggingProxyCallSite:
+    """Records created through the proxies name the proxy's caller."""
+
+    @pytest.mark.parametrize("method", ["debug", "info", "warning", "error", "exception", "critical"])
+    def test_proxy_records_caller_as_call_site(
+        self, real_traced_logger: TracedLogger, caplog: pytest.LogCaptureFixture, method: str
+    ) -> None:
+        with caplog.at_level(logging.DEBUG, logger=real_traced_logger.logger.name):
+            getattr(real_traced_logger, method)("hello")
+
+        record = caplog.records[-1]
+        assert record.funcName == "test_proxy_records_caller_as_call_site"
+        assert record.filename == "test_traced_logger.py"
+
+    def test_log_proxy_records_caller_as_call_site(
+        self, real_traced_logger: TracedLogger, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        with caplog.at_level(logging.DEBUG, logger=real_traced_logger.logger.name):
+            real_traced_logger.log(logging.INFO, "hello")
+
+        assert caplog.records[-1].funcName == "test_log_proxy_records_caller_as_call_site"
 
 
 # ------------------------------------------------------------------
@@ -139,6 +190,20 @@ class TestTraceDecorator:
 
         with pytest.raises(ValueError, match="boom"):
             failing()
+
+    def test_trace_records_exception_once_with_error_status(
+        self, recording_traced_logger: TracedLogger, span_exporter: InMemorySpanExporter
+    ) -> None:
+        @recording_traced_logger.trace("failing-op")
+        def failing() -> None:
+            raise ValueError("boom")
+
+        with pytest.raises(ValueError, match="boom"):
+            failing()
+
+        (span,) = span_exporter.get_finished_spans()
+        assert [event.name for event in span.events] == ["exception"]
+        assert span.status.status_code is StatusCode.ERROR
 
     def test_trace_with_attributes(self, traced_logger: TracedLogger) -> None:
         @traced_logger.trace("op", attributes={"op.type": "test"})
@@ -222,6 +287,21 @@ class TestTraceDecoratorAsync:
             await failing_async()
 
     @pytest.mark.asyncio
+    async def test_trace_async_records_exception_once_with_error_status(
+        self, recording_traced_logger: TracedLogger, span_exporter: InMemorySpanExporter
+    ) -> None:
+        @recording_traced_logger.trace("failing-async-op")
+        async def failing_async() -> None:
+            raise ValueError("async boom")
+
+        with pytest.raises(ValueError, match="async boom"):
+            await failing_async()
+
+        (span,) = span_exporter.get_finished_spans()
+        assert [event.name for event in span.events] == ["exception"]
+        assert span.status.status_code is StatusCode.ERROR
+
+    @pytest.mark.asyncio
     async def test_trace_async_with_attributes(self, traced_logger: TracedLogger) -> None:
         @traced_logger.trace("async-op", attributes={"op.type": "async-test"})
         async def my_async_op() -> str:
@@ -291,3 +371,29 @@ class TestInstrumentDb:
 
         assert result == ["psycopg2", "psycopg"]
         mock_fn.assert_called_once_with("psycopg2", "psycopg", enable_commenter=False)
+
+
+# ------------------------------------------------------------------
+# instrument_requests() / instrument_fastapi() convenience methods
+# ------------------------------------------------------------------
+
+
+class TestInstrumentHttp:
+    """Tests for TracedLogger.instrument_requests() and instrument_fastapi() delegation."""
+
+    def test_instrument_requests_delegates_to_requests_module(self, traced_logger: TracedLogger) -> None:
+        from unittest.mock import patch as _patch
+
+        with _patch("simple_log_factory_ext_otel.requests_instr.instrument_requests") as mock_fn:
+            traced_logger.instrument_requests(excluded_urls="health")
+
+        mock_fn.assert_called_once_with(excluded_urls="health")
+
+    def test_instrument_fastapi_delegates_to_fastapi_module(self, traced_logger: TracedLogger) -> None:
+        from unittest.mock import patch as _patch
+
+        app = MagicMock()
+        with _patch("simple_log_factory_ext_otel.fastapi_instr.instrument_fastapi") as mock_fn:
+            traced_logger.instrument_fastapi(app, excluded_urls="health")
+
+        mock_fn.assert_called_once_with(app=app, excluded_urls="health")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from opentelemetry import trace
@@ -30,7 +31,7 @@ __all__ = [
     "uninstrument_fastapi",
     "uninstrument_requests",
 ]
-__version__ = "1.5.0"
+__version__ = "2.0.0"
 
 _otel_logger_map: dict[str, TracedLogger] = {}
 _otel_tracer_map: dict[str, OtelTracer] = {}
@@ -163,7 +164,7 @@ def otel_log_factory(
     if not otel_exporter_endpoint or otel_exporter_endpoint.isspace():
         raise ValueError("otel_exporter_endpoint must be set.")
 
-    if service_name is None or service_name.isspace():
+    if not service_name or service_name.isspace():
         raise ValueError("service_name must be set.")
 
     if log_name is None:
@@ -208,10 +209,12 @@ def otel_log_factory(
         _otel_tracer_map[tracer_key] = otel_tracer
 
     existing_handlers = kwargs.get("custom_handlers")
-    if existing_handlers is not None:
-        kwargs["custom_handlers"] = [*existing_handlers, log_handler]
-    else:
+    if existing_handlers is None:
         kwargs["custom_handlers"] = [log_handler]
+    elif isinstance(existing_handlers, logging.Handler):
+        kwargs["custom_handlers"] = [existing_handlers, log_handler]
+    else:
+        kwargs["custom_handlers"] = [*existing_handlers, log_handler]
 
     logger = log_factory(log_name=log_name, **kwargs)
 

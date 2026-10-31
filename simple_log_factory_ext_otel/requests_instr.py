@@ -28,7 +28,7 @@ def instrument_requests(*, excluded_urls: str | None = None) -> None:
         from opentelemetry.instrumentation.requests import RequestsInstrumentor
     except ImportError:
         raise ImportError(
-            "To instrument requests, install the extra: " "pip install simple-log-factory-ext-otel[requests]"
+            "To instrument requests, install the extra: pip install simple-log-factory-ext-otel[requests]"
         )
 
     instrumentor = RequestsInstrumentor()
@@ -50,7 +50,7 @@ def uninstrument_requests() -> None:
         from opentelemetry.instrumentation.requests import RequestsInstrumentor
     except ImportError:
         raise ImportError(
-            "To uninstrument requests, install the extra: " "pip install simple-log-factory-ext-otel[requests]"
+            "To uninstrument requests, install the extra: pip install simple-log-factory-ext-otel[requests]"
         )
 
     RequestsInstrumentor().uninstrument()

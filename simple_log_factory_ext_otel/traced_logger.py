@@ -10,21 +10,35 @@ from __future__ import annotations
 import functools
 import inspect
 import logging
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Callable, Generator
 from contextlib import asynccontextmanager, contextmanager
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 from opentelemetry.sdk.trace import Tracer
-from opentelemetry.trace import StatusCode
 
 F = TypeVar("F", bound=Callable[..., Any])
+
+
+def _caller_stacklevel(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Raise ``stacklevel`` by one, so records name the proxy's caller instead of the proxy.
+
+    Args:
+        kwargs: Keyword arguments of the proxied logging call. Updated in place.
+
+    Returns:
+        The same *kwargs*, ready to forward to the ``logging.Logger`` method.
+    """
+    kwargs["stacklevel"] = kwargs.get("stacklevel", 1) + 1
+    return kwargs
 
 
 class TracedLogger:
     """Wraps a ``logging.Logger`` and an OTel ``Tracer``.
 
     All standard logging methods (debug, info, warning, error, exception,
-    critical, log) are proxied to the underlying logger.  Logs emitted
+    critical, log) are proxied to the underlying logger, and the records they
+    create name the proxy's caller as their source (``funcName``, ``lineno``,
+    ``pathname``, and the exported ``code.*`` attributes).  Logs emitted
     inside a ``span()`` or ``trace()`` are automatically correlated with
     the active span via OTel's context propagation.
 
@@ -57,31 +71,31 @@ class TracedLogger:
 
     def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
         """Proxy to ``logger.debug``."""
-        self._logger.debug(msg, *args, **kwargs)
+        self._logger.debug(msg, *args, **_caller_stacklevel(kwargs))
 
     def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
         """Proxy to ``logger.info``."""
-        self._logger.info(msg, *args, **kwargs)
+        self._logger.info(msg, *args, **_caller_stacklevel(kwargs))
 
     def warning(self, msg: str, *args: Any, **kwargs: Any) -> None:
         """Proxy to ``logger.warning``."""
-        self._logger.warning(msg, *args, **kwargs)
+        self._logger.warning(msg, *args, **_caller_stacklevel(kwargs))
 
     def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
         """Proxy to ``logger.error``."""
-        self._logger.error(msg, *args, **kwargs)
+        self._logger.error(msg, *args, **_caller_stacklevel(kwargs))
 
     def exception(self, msg: str, *args: Any, **kwargs: Any) -> None:
         """Proxy to ``logger.exception``."""
-        self._logger.exception(msg, *args, **kwargs)
+        self._logger.exception(msg, *args, **_caller_stacklevel(kwargs))
 
     def critical(self, msg: str, *args: Any, **kwargs: Any) -> None:
         """Proxy to ``logger.critical``."""
-        self._logger.critical(msg, *args, **kwargs)
+        self._logger.critical(msg, *args, **_caller_stacklevel(kwargs))
 
     def log(self, level: int, msg: str, *args: Any, **kwargs: Any) -> None:
         """Proxy to ``logger.log``."""
-        self._logger.log(level, msg, *args, **kwargs)
+        self._logger.log(level, msg, *args, **_caller_stacklevel(kwargs))
 
     # ------------------------------------------------------------------
     # Database instrumentation
@@ -191,8 +205,10 @@ class TracedLogger:
     ) -> Callable[[F], F]:
         """Decorator that wraps a function call in an OTel span.
 
-        If the decorated function raises an exception, it is recorded on
-        the span and re-raised.
+        If the decorated function raises an exception, the span records it
+        once as an exception event, its status is set to ``ERROR``, and the
+        exception is re-raised (the default behavior of
+        ``start_as_current_span``).
 
         Args:
             name: Span name.  Defaults to the function's qualified name.
@@ -209,25 +225,15 @@ class TracedLogger:
 
                 @functools.wraps(func)
                 async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-                    with self._tracer.start_as_current_span(span_name, attributes=attributes) as s:
-                        try:
-                            return await func(*args, **kwargs)
-                        except Exception as exc:
-                            s.set_status(StatusCode.ERROR, str(exc))
-                            s.record_exception(exc)
-                            raise
+                    with self._tracer.start_as_current_span(span_name, attributes=attributes):
+                        return await func(*args, **kwargs)
 
                 return async_wrapper  # type: ignore[return-value]
 
             @functools.wraps(func)
             def wrapper(*args: Any, **kwargs: Any) -> Any:
-                with self._tracer.start_as_current_span(span_name, attributes=attributes) as s:
-                    try:
-                        return func(*args, **kwargs)
-                    except Exception as exc:
-                        s.set_status(StatusCode.ERROR, str(exc))
-                        s.record_exception(exc)
-                        raise
+                with self._tracer.start_as_current_span(span_name, attributes=attributes):
+                    return func(*args, **kwargs)
 
             return wrapper  # type: ignore[return-value]
 

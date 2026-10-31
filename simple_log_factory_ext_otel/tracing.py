@@ -18,6 +18,7 @@ from simple_log_factory_ext_otel._constants import (
     DEFAULT_ENDPOINT,
     DEFAULT_EXPORT_TIMEOUT_MILLIS,
     DEFAULT_PROTOCOL,
+    MILLIS_PER_SECOND,
     VALID_PROTOCOLS,
 )
 from simple_log_factory_ext_otel._resource import create_resource
@@ -127,17 +128,21 @@ class OtelTracer:
         headers: dict[str, str] | None,
         timeout: int,
     ) -> GrpcSpanExporter | HttpSpanExporter:
-        """Instantiate the appropriate OTLP span exporter."""
+        """Instantiate the appropriate OTLP span exporter.
+
+        *timeout* is in milliseconds; the OTLP exporters take seconds.
+        """
+        timeout_seconds = timeout / MILLIS_PER_SECOND
         if protocol == "grpc":
             return GrpcSpanExporter(
                 endpoint=endpoint,
                 insecure=insecure,
                 headers=headers or {},
-                timeout=timeout,
+                timeout=timeout_seconds,
             )
         # protocol == "http"
         return HttpSpanExporter(
             endpoint=endpoint,
             headers=headers or {},
-            timeout=timeout,
+            timeout=timeout_seconds,
         )
